@@ -1,0 +1,8 @@
+{
+  "integrations": [
+    {
+      "type": "discord",
+      "enabled": true
+    }
+  ]
+}
