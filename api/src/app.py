@@ -1,7 +1,7 @@
 import asyncio
 
 def syncEventsFromBaseServer():
-    events = event_service.getEvents()
+    events = event_repository.getEvents()
     
     for event in events:
         event_service.createEvent(event)

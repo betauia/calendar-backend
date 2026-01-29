@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from db.engine import ENGINE
-from domain.generic_event import GenericEvent
+from api.src.domain.event import GenericEvent
 
 
 def seed():
