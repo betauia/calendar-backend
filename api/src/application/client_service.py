@@ -1,4 +1,4 @@
-def load_integrations_from_config():
+def get_all_clients():
     pass
 
 def push_event_to_client(event, client):
