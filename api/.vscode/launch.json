@@ -8,9 +8,12 @@
             "name": "Run API (module)",
             "type": "debugpy",
             "request": "launch",
-            "module": "src.application.startup_service",
+            "module": "src.main",
             "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }
