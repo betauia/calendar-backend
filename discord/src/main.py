@@ -4,7 +4,7 @@ from routes.routes import bot, DISCORD_TOKEN, app
 
 
 async def main():
-    await bot.login(DISCORD_TOKEN)
+    await bot.login(str(DISCORD_TOKEN))
 
     # start discord gateway
     asyncio.create_task(bot.connect())

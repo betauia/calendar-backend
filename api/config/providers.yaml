@@ -1,5 +1,5 @@
 external_providers:
-  - url: "https://discord-api.com/events"
+  - url: "https://localhost:8000"
     name: "Discord"
   
   - url: "https://google-calendar-api.com/events"

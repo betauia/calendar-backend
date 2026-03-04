@@ -1,7 +1,8 @@
-import yaml
 from pathlib import Path
 from pydantic import BaseModel, HttpUrl
 from typing import List
+
+import yaml
 
 class Provider(BaseModel):
     name: str
