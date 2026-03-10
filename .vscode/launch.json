@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "compounds": [
+        {
+            "name": "Run Full Backend",
+            "configurations": [
+                "Run server backend (module)",
+                "Python Debugger: Bot + FastAPI"
+            ]
+        }
+    ]
+}

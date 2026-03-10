@@ -5,12 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run API (module)",
+            "name": "Run server backend (module)",
             "type": "debugpy",
             "request": "launch",
             "module": "src.main",
             "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }

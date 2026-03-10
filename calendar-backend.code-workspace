@@ -1,0 +1,16 @@
+{
+    "folders": [
+        {
+            "name": "root",
+            "path": "."
+        },
+        {
+            "name": "api",
+            "path": "api"
+        },
+        {
+            "name": "discord",
+            "path": "discord"
+        }
+    ]
+}

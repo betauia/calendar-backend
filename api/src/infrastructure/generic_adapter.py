@@ -10,8 +10,8 @@ class GenericProviderAdapter:
         Sends the event to the provider API according to your protocol.
         Returns the provider's external event ID on success.
         """
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(self.url + "/events", json={
+        async with httpx.AsyncClient(base_url=str(self.url)) as client:
+            resp = await client.post("/events", json={
                 "title": event.title,
                 "start_time": event.start_time.isoformat(),
                 "end_time": event.end_time.isoformat(),

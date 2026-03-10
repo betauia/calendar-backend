@@ -15,7 +15,7 @@ adapters = {p.name: GenericProviderAdapter(p.url) for p in config.external_provi
 
 @router.post("/events")
 async def create_event(dto: EventCreateDTO, background_tasks: BackgroundTasks):
-    async with SessionLocal() as session:
+     async with SessionLocal() as session:
         repo = EventRepository(session)
         service = EventService(repo, adapters, config)
         # persist event
