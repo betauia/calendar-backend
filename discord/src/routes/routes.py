@@ -70,8 +70,8 @@ async def create_scheduled_event(dto: EventCreateDTO):
         # Create a scheduled event on Discord
         event = await guild.create_scheduled_event(
             name=dto.title,
-            start_time=dto.start_time,
-            end_time=dto.end_time,
+            start_time=dto.start_time.astimezone(),  # ensure timezone-aware
+            end_time=dto.end_time.astimezone(),
             entity_type=discord.EntityType.external,  # or voice stage/channel
             privacy_level=discord.PrivacyLevel.guild_only,
             location="Online"  # required for external events
