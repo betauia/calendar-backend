@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
-class Event(BaseModel):
+class TruthCalendar(BaseModel):
     id: int
     title: str
     start: datetime

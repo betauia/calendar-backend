@@ -6,7 +6,7 @@ import aiohttp
 from infrastructure.event_repository import EventRepository
 from infrastructure.session import engine
 from domain.models import Base
-from domain.config import Config
+from api.src.domain.ProvidersConfig import Config
 
 class StartupService:
     def __init__(self):

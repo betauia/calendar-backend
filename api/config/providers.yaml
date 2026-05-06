@@ -1,9 +1,7 @@
 external_providers:
-  - url: "https://localhost:8000"
-    name: "Discord"
-  
-  - url: "https://google-calendar-api.com/events"
-    name: "Google Calendar"
-  
-  - url: "https://slack-api.com/events"
-    name: "Slack"
+  - name: "Discord"
+    url: "https://localhost:8000"
+  # - url: "https://google-calendar-api.com/events"
+  #   name: "Google Calendar"
+  # - url: "https://slack-api.com/events"
+  #   name: "Slack"
