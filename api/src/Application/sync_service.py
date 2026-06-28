@@ -1,37 +1,159 @@
-from infrastructure.event_repository import EventRepository
-from infrastructure.session import engine
-from domain.models import Base
+import logging
 
-import aiohttp
-from infrastructure.event_repository import EventRepository
-from infrastructure.session import engine
-from domain.models import Base
-from api.src.domain.ProvidersConfig import Config
+from Application.calendar_service_registry import CalendarServiceRegistry
+from Application.models.DTO.remote_calendar_dto import RemoteCalendarDTO
+from Application.models.result.calendar_sync_result import CalendarSyncResult
+from Application.models.result.event_sync_result import EventSyncResult
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
+from Domain.SyncStatus import SyncStatus
+from Application.models.result.sync_result import SyncResult
+from Application.service_result import ErrorCode, ServiceResult
+from Domain.ExternalProvider import ExternalProvider
+from Domain.TruthCalendar import TruthCalendar, TruthCalendarEvent
+from Infrastructure.external_event_mapping_store import ExternalEventMappingStore
+from Infrastructure.truth_calendar_service import TruthCalendarService
 
-class StartupService:
-    def __init__(self):
-        self.event_repo = EventRepository()
-        self.config = Config.load()
-    
-    async def run(self):
-        # Create tables
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+logger = logging.getLogger(__name__)
+
+
+class SyncService:
+    def __init__(
+        self,
+        truth_service: TruthCalendarService,
+        registry: CalendarServiceRegistry,
+        mapping_store: ExternalEventMappingStore,
+    ) -> None:
+        self._truth_service = truth_service
+        self._registry = registry
+        self._mapping_store = mapping_store
+
+    def _get_truth_calendar(self) -> TruthCalendar:
+        logger.debug("Fetching truth calendar events...")
+        result = self._truth_service.get_calendar()
+        if not result.is_successful or result.value is None:
+            logger.error("Failed to fetch truth calendar events")
+            raise Exception("Failed to fetch truth calendar events")
+        logger.debug(f"Fetched {len(result.value.calendar_events)} events from truth calendar")
+        return result.value
+
+    def _get_provider_calendar(self, provider: ExternalProvider) -> RemoteCalendar:
+        logger.debug(f"Fetching calendar from provider '{provider.name}'...")
+        service = self._registry.get(provider)
+        if service is None:
+            logger.warning(f"No calendar service registered for provider '{provider.name}'")
+            raise Exception(f"No calendar service registered for provider '{provider.name}'")
+        result = service.get_calendar()
+
+        if result.is_successful and result.value is not None:
+            logger.debug(f"Successfully fetched calendar from provider '{provider.name}'")
+            return RemoteCalendar(
+                external_provider=provider,
+                calendar_events=result.value.,
+            )
+        else:
+            logger.error(f"Failed to fetch calendar from provider '{provider.name}': {result.error_description}")
+            raise Exception(f"Failed to fetch calendar from provider '{provider.name}': {result.error_description}")
+
+    def _events_match(self, truth_event: CalendarEventInfo, remote_event: CalendarEventInfo) -> bool:
+        return (
+            truth_event.title == remote_event.title
+            and truth_event.description == remote_event.description
+            and truth_event.location == remote_event.location
+            and truth_event.starts_at == remote_event.starts_at
+            and truth_event.ends_at == remote_event.ends_at
+        )
+
+    def _resolve_event_status(
+        self,
+        truth_event: TruthCalendarEvent,
+        remote_event: RemoteCalendarEvent,
+    ) -> SyncStatus:
         
-        # Get events
-        events = await self.event_repo.get_all()
-        print(f"Found {len(events)} events")
+        if not self._events_match(truth_event.event_info, remote_event.event_info):
+            return SyncStatus.BEHIND
+        return SyncStatus.SYNCED
+
+    def get_provider_calendar_sync_status(
+    self,
+    external_provider: ExternalProvider
+) -> CalendarSyncResult:
+        truth_calendar = self._get_truth_calendar()
+        remote_calendar = self._get_provider_calendar(external_provider)
         
-        # Push to all providers
-        async with aiohttp.ClientSession() as http:
-            for provider in self.config.external_providers:
-                print(f"\n🔄 Syncing to {provider.name}...")
-                
-                for event in events:
-                    payload = {
-                        "title": event.title,
-                        "start_time": event.start_time.isoformat(),
-                        "end_time": event.end_time.isoformat(),
-                    }
-                    
-                    print(f"  ✅ {event.title} - Status: sent ✅")
+        provider_name = remote_calendar.external_provider.name
+        logger.debug(f"Comparing calendars for provider '{provider_name}'...")
+
+        truth_events = {e.id: e for e in truth_calendar.calendar_events}
+        remote_events = {e.external_id: e for e in remote_calendar.calendar_events}
+        logger.debug(f"Truth events: {len(truth_events)}, Remote events: {len(remote_events)}")
+
+        mapped_external_ids: set[str] = set()
+        event_results: list[EventSyncResult] = []
+
+        for truth_id, truth_event in truth_events.items():
+            mapping = self._mapping_store.get(truth_id, remote_calendar.external_provider)
+
+            if mapping is None:
+                logger.debug(f"[{provider_name}] Truth event {truth_id} has no mapping → BEHIND")
+                event_results.append(EventSyncResult(
+                    truth_event=truth_event,
+                    remote_event=None,
+                    sync_status=SyncStatus.BEHIND
+                ))
+            elif mapping.external_id not in remote_events:
+                logger.warning(f"[{provider_name}] Truth event {truth_id} mapped to '{mapping.external_id}' but remote event is gone → BEHIND")
+                event_results.append(EventSyncResult(
+                    truth_event=truth_event,
+                    remote_event=None,
+                    sync_status=SyncStatus.BEHIND
+                ))
+            else:
+                remote_event = remote_events[mapping.external_id]
+                mapped_external_ids.add(mapping.external_id)
+                status = self._resolve_event_status(truth_event, remote_event)
+                logger.debug(f"[{provider_name}] Truth event {truth_id} ↔ remote '{mapping.external_id}' → {status.value}")
+                event_results.append(EventSyncResult(
+                    truth_event=truth_event,
+                    remote_event=remote_event,
+                    sync_status=status
+                ))
+
+        for external_id, remote_event in remote_events.items():
+            if external_id not in mapped_external_ids:
+                logger.debug(f"[{provider_name}] Remote event '{external_id}' has no truth counterpart → AHEAD")
+                event_results.append(EventSyncResult(
+                    truth_event=None,
+                    remote_event=remote_event,
+                    sync_status=SyncStatus.AHEAD
+                ))
+
+        logger.debug(f"[{provider_name}] Comparison complete: {len(event_results)} results")
+        return CalendarSyncResult(remote_calendar=remote_calendar, event_statuses=event_results)
+
+    def get_all_calendars_sync_status(self) -> ServiceResult[SyncResult]:
+        try:
+            truth_calendar = self._get_truth_events()
+        except Exception as e:
+            return ServiceResult[SyncResult](
+                is_successful=False,
+                error_code=ErrorCode.UNKNOWN,
+                error_description=str(e)
+            )
+
+        calendar_sync_results: list[CalendarSyncResult] = []
+
+        for provider, _ in self._registry.get_all():
+            try:
+                remote_calendar = self._get_provider_calendar(provider)
+            except Exception as e:
+                logger.warning(f"Skipping provider '{provider.name}': {e}")
+                continue
+
+            result = self._compare_calendars(truth_calendar, remote_calendar, provider)
+            calendar_sync_results.append(result)
+
+        return ServiceResult[SyncResult](
+            is_successful=True,
+            value=SyncResult(calendar_sync_statuses=calendar_sync_results)
+        )

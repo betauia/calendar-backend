@@ -1,11 +1,12 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-class Calendar(BaseModel):
-    id: int
-    title: str
-    start: datetime
-    end: datetime
-    updated_at: datetime
+from Domain.ExternalProvider import ExternalProvider
+from Domain.RemoteCalendarEvent import RemoteCalendarEvent
 
-    model_config = ConfigDict(frozen=True)
+
+class RemoteCalendar(BaseModel):
+    external_provider: ExternalProvider
+    
+    calendar_events: list[RemoteCalendarEvent] = []
+
+    # model_config = ConfigDict(frozen=True)

@@ -1,11 +1,11 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from Domain.TruthCalendarEvent import TruthCalendarEvent
+
 
 class TruthCalendar(BaseModel):
-    id: int
-    title: str
-    start: datetime
-    end: datetime
-    updated_at: datetime
+    
+    calendar_events: list[TruthCalendarEvent] = []
+    
 
-    model_config = ConfigDict(frozen=True)
+    # model_config = ConfigDict(frozen=True)

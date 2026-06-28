@@ -1,6 +1,6 @@
 from pydantic import BaseModel, HttpUrl
 
 
-class ExternalProvider(BaseModel):
+class ExternalProvider(BaseModel, frozen=True):
     name: str
     url: HttpUrl

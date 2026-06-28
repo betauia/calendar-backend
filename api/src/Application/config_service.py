@@ -2,24 +2,21 @@ from importlib.resources import path
 
 import yaml
 
-from Domain.ExternalProvider import ExternalProvider
-from Domain.ProvidersConfig import ProvidersConfig
-
 import logging.handlers
 from pathlib import Path
 
+from Domain.ProvidersConfig import ProvidersConfig
+
 
 class ConfigService:
-    def load_config_from_file(self, path: str) -> ProvidersConfig:
-        config_path = Path(path)
-        
+    def load_config_from_file(self, config_path: Path) -> ProvidersConfig:        
         with config_path.open() as f:
             data = yaml.safe_load(f)
         
         return ProvidersConfig(**data)
     
 
-    def setup_logging(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
+    def setup_logging(self, log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
         log_path = Path(log_dir)
         log_path.mkdir(exist_ok=True)
 
