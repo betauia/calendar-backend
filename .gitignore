@@ -3,3 +3,6 @@ __pycache__
 *.env
 *.db
 *.log
+api/.coverage
+calendar-backend.code-workspace
+api/.vscode/settings.json
