@@ -1,15 +1,16 @@
 import logging
 
-from src.Application.calendar_service_registry import CalendarServiceRegistry
-from src.Application.models.result.calendar_sync_result import CalendarSyncResult
-from src.Application.models.result.event_sync_result import EventSyncResult
-from src.Domain.CalendarEventInfo import CalendarEventInfo
-from src.Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
-from src.Domain.SyncStatus import SyncStatus
-from src.Domain.ExternalProvider import ExternalProvider
-from src.Domain.TruthCalendar import TruthCalendar, TruthCalendarEvent
-from src.Infrastructure.external_event_mapping_store import ExternalEventMappingStore
-from src.Infrastructure.truth_calendar_service import TruthCalendarService
+from Application.calendar_service_registry import CalendarServiceRegistry
+from Application.models.result.calendar_sync_result import CalendarSyncResult
+from Application.models.result.event_sync_result import EventSyncResult
+from Application.models.result.sync_result import SyncResult
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
+from Domain.SyncStatus import SyncStatus
+from Domain.ExternalProvider import ExternalProvider
+from Domain.TruthCalendar import TruthCalendar, TruthCalendarEvent
+from Infrastructure.external_event_mapping_store import ExternalEventMappingStore
+from Infrastructure.truth_calendar_service import TruthCalendarService
 
 logger = logging.getLogger(__name__)
 
@@ -128,29 +129,19 @@ class SyncService:
         logger.debug(f"[{provider_name}] Comparison complete: {len(event_results)} results")
         return CalendarSyncResult(remote_calendar=remote_calendar, event_statuses=event_results)
 
-    # def get_all_calendars_sync_status(self) -> ServiceResult[SyncResult]:
-    #     try:
-    #         truth_calendar = self._get_truth_calendar()
-    #     except Exception as e:
-    #         return ServiceResult[SyncResult](
-    #             is_successful=False,
-    #             error_code=ErrorCode.UNKNOWN,
-    #             error_description=str(e)
-    #         )
+    def get_all_calendars_sync_status(self) -> SyncResult:
+        truth_calendar = self._get_truth_calendar()
 
-    #     calendar_sync_results: list[CalendarSyncResult] = []
+        calendar_sync_results: list[CalendarSyncResult] = []
 
-    #     for provider, _ in self._registry.get_all():
-    #         try:
-    #             remote_calendar = self._get_provider_calendar(provider)
-    #         except Exception as e:
-    #             logger.warning(f"Skipping provider '{provider.name}': {e}")
-    #             continue
+        for provider, _ in self._registry.get_all():
+            try:
+                remote_calendar = self._get_provider_calendar(provider)
+            except Exception as e:
+                logger.warning(f"Skipping provider '{provider.name}': {e}")
+                continue
 
-    #         result = self._compare_calendars(truth_calendar, remote_calendar, provider)
-    #         calendar_sync_results.append(result)
+            result = self.get_provider_calendar_sync_status(provider)
+            calendar_sync_results.append(result)
 
-    #     return ServiceResult[SyncResult](
-    #         is_successful=True,
-    #         value=SyncResult(calendar_sync_statuses=calendar_sync_results)
-    #     )
+        return SyncResult(calendar_sync_statuses=calendar_sync_results)

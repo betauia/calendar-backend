@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from src.Domain.CalendarEventInfo import CalendarEventInfo
-from src.Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 
 class TruthCalendarEvent(BaseModel):
     id: int

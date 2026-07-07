@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from src.Domain.ExternalProvider import ExternalProvider
+from Domain.ExternalProvider import ExternalProvider
 
 
 class ProvidersConfig(BaseModel):

@@ -3,10 +3,11 @@ import logging
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from src.Application.service_result import ServiceResult, ErrorCode
-from src.Domain.TruthCalendar import TruthCalendar
-from src.Domain.TruthCalendarEvent import TruthCalendarEvent
-from src.Infrastructure.calendar_event_orm import Base, CalendarEventORM
+from Application.service_result import ServiceResult, ErrorCode
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.TruthCalendar import TruthCalendar
+from Domain.TruthCalendarEvent import TruthCalendarEvent
+from Infrastructure.calendar_event_orm import Base, CalendarEventORM
 
 logger = logging.getLogger(__name__)
 
@@ -30,37 +31,37 @@ class TruthCalendarService:
             logger.error(f"Failed to get truth calendar: {e}")
             return ServiceResult[TruthCalendar](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
-    def add_event(self, event: TruthCalendarEvent) -> ServiceResult[TruthCalendarEvent]:
+    def add_event(self, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
         with self._session_factory() as session:
             try:
-                orm_event = CalendarEventORM.from_domain(event)
+                orm_event = CalendarEventORM.from_event_info(event_info)
                 session.add(orm_event)
                 session.commit()
                 session.refresh(orm_event)
                 added_event = orm_event.to_domain()
-                logger.info(f"Successfully added event: {event.event_info.title} with id {orm_event.id}")
+                logger.info(f"Successfully added event: {event_info.title} with id {orm_event.id}")
                 return ServiceResult[TruthCalendarEvent](is_successful=True, value=added_event)
             except Exception as e:
                 session.rollback()
                 logger.error(f"Failed to add event to truth calendar: {e}")
                 return ServiceResult[TruthCalendarEvent](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
-    def update_event(self, updated_event: TruthCalendarEvent) -> ServiceResult[TruthCalendarEvent]:
+    def update_event(self, event_id: int, updated_event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
         with self._session_factory() as session:
             try:
-                row = session.get(CalendarEventORM, updated_event.id)
+                row = session.get(CalendarEventORM, event_id)
                 if not row:
-                    logger.warning(f"Event with id {updated_event.id} not found")
-                    return ServiceResult[TruthCalendarEvent](is_successful=False, error_code=ErrorCode.NOT_FOUND, error_description=f"Event with id {updated_event.id} not found")
+                    logger.warning(f"Event with id {event_id} not found")
+                    return ServiceResult[TruthCalendarEvent](is_successful=False, error_code=ErrorCode.NOT_FOUND, error_description=f"Event with id {event_id} not found")
 
-                row.title = updated_event.event_info.title
-                row.description = updated_event.event_info.description
-                row.location = updated_event.event_info.location
-                row.starts_at = updated_event.event_info.starts_at
-                row.ends_at = updated_event.event_info.ends_at
+                row.title = updated_event_info.title
+                row.description = updated_event_info.description
+                row.location = updated_event_info.location
+                row.starts_at = updated_event_info.starts_at
+                row.ends_at = updated_event_info.ends_at
                 session.commit()
                 session.refresh(row)
-                logger.info(f"Updated event: {updated_event.event_info.title}")
+                logger.info(f"Updated event: {updated_event_info.title}")
                 return ServiceResult[TruthCalendarEvent](is_successful=True, value=row.to_domain())
             except Exception as e:
                 session.rollback()

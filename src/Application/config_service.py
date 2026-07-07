@@ -3,7 +3,7 @@ import yaml
 import logging.handlers
 from pathlib import Path
 
-from src.Domain.ProvidersConfig import ProvidersConfig
+from Domain.ProvidersConfig import ProvidersConfig
 
 
 class ConfigService:

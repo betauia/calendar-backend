@@ -8,6 +8,7 @@ from unittest.mock import create_autospec
 from Application.sync_service import SyncService
 from Application.calendar_service_registry import CalendarServiceRegistry
 from Application.models.result.calendar_sync_result import CalendarSyncResult
+from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
 from Domain.ExternalEventMapping import ExternalEventMapping
@@ -36,12 +37,17 @@ def event_info() -> CalendarEventInfo:
         location="Online",
         starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
         ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+    )
+    
+@pytest.fixture
+def event_meta_info() -> CalendarEventMetaInfo:
+    return CalendarEventMetaInfo(
         created_at=datetime(2024, 1, 1, 8, 0, tzinfo=timezone.utc),
     )
 
 @pytest.fixture
-def truth_event(event_info: CalendarEventInfo) -> TruthCalendarEvent:
-    return TruthCalendarEvent(id=1, event_info=event_info)
+def truth_event(event_info: CalendarEventInfo, event_meta_info: CalendarEventMetaInfo) -> TruthCalendarEvent:
+    return TruthCalendarEvent(id=1, event_info=event_info, event_meta_info=event_meta_info)
 
 @pytest.fixture
 def remote_event(event_info: CalendarEventInfo) -> RemoteCalendarEvent:

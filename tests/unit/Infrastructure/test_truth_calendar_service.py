@@ -6,22 +6,21 @@ import pytest
 from datetime import datetime, timezone
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.Infrastructure.truth_calendar_service import TruthCalendarService
-from src.Application.service_result import ErrorCode
-from src.Domain.TruthCalendarEvent import TruthCalendarEvent
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Infrastructure.truth_calendar_service import TruthCalendarService
+from Application.service_result import ErrorCode
 
 logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def service():
-    return TruthCalendarService(connection_string="sqlite:///test_truth_calendar.db")
+    return TruthCalendarService(connection_string="sqlite:///:memory:")
 
 @pytest.fixture
-def sample_event():
-    return TruthCalendarEvent(
+def sample_event_info():
+    return CalendarEventInfo(
         title="Team meeting",
         description="Weekly sync",
-        created_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
         location="Discord",
         starts_at=datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
         ends_at=datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
@@ -43,11 +42,11 @@ def test_get_calendar_empty(service: TruthCalendarService):
     assert result.value is not None
     assert result.value.calendar_events == []
 
-def test_add_event(service: TruthCalendarService, sample_event: CalendarEvent):
-    result = service.add_event(sample_event)
+def test_add_event(service: TruthCalendarService, sample_event_info: CalendarEventInfo):
+    result = service.add_event(sample_event_info)
     assert result.is_successful
     assert result.value is not None
-    assert result.value.title == "Team meeting"
+    assert result.value.event_info.title == "Team meeting"
     assert result.value.id is not None
 
     calendar_result = service.get_calendar()
@@ -55,44 +54,50 @@ def test_add_event(service: TruthCalendarService, sample_event: CalendarEvent):
     assert calendar_result.value is not None
     assert len(calendar_result.value.calendar_events) == 1
 
-def test_add_event_database_error(service: TruthCalendarService, sample_event: CalendarEvent, failing_session_factory: tuple[MagicMock, MagicMock]):
+def test_add_event_database_error(service: TruthCalendarService, sample_event_info: CalendarEventInfo, failing_session_factory: tuple[MagicMock, MagicMock]):
     mock_factory, mock_session = failing_session_factory
     with patch.object(service, "_session_factory", mock_factory):
-        result = service.add_event(sample_event)
+        result = service.add_event(sample_event_info)
         assert not result.is_successful
         assert result.error_code == ErrorCode.UNKNOWN
         mock_session.rollback.assert_called_once()
 
-def test_update_event(service: TruthCalendarService, sample_event: CalendarEvent):
-    add_result = service.add_event(sample_event)
+def test_update_event(service: TruthCalendarService, sample_event_info: CalendarEventInfo):
+    add_result = service.add_event(sample_event_info)
     assert add_result.value is not None
-
-    updated = add_result.value.model_copy(update={"title": "Updated meeting"})
-    update_result = service.update_event(updated)
+    assert add_result.value.id is not None
+ 
+    updated_info = sample_event_info.model_copy(update={"title": "Updated meeting"})
+    update_result = service.update_event(add_result.value.id, updated_info)
+ 
     assert update_result.is_successful
     assert update_result.value is not None
-    assert update_result.value.title == "Updated meeting"
+    assert update_result.value.event_info.title == "Updated meeting"
 
-def test_update_nonexistent_event(service: TruthCalendarService, sample_event: CalendarEvent):
-    sample_event_with_id = sample_event.model_copy(update={"id": 999})
-    result = service.update_event(sample_event_with_id)
+def test_update_nonexistent_event(service: TruthCalendarService, sample_event_info: CalendarEventInfo):
+    result = service.update_event(999, sample_event_info)
     assert not result.is_successful
     assert result.error_code == ErrorCode.NOT_FOUND
 
-def test_update_event_database_error(service: TruthCalendarService, sample_event: CalendarEvent, failing_session_factory: tuple[MagicMock, MagicMock]):
-    add_result = service.add_event(sample_event)
+def test_update_event_database_error(
+    service: TruthCalendarService,
+    sample_event_info: CalendarEventInfo,
+    failing_session_factory: tuple[MagicMock, MagicMock],
+):
+    add_result = service.add_event(sample_event_info)
     assert add_result.value is not None
-
-    updated = add_result.value.model_copy(update={"title": "Updated meeting"})
+    assert add_result.value.id is not None
+ 
+    updated_info = sample_event_info.model_copy(update={"title": "Updated meeting"})
     mock_factory, mock_session = failing_session_factory
     with patch.object(service, "_session_factory", mock_factory):
-        result = service.update_event(updated)
+        result = service.update_event(add_result.value.id, updated_info)
         assert not result.is_successful
         assert result.error_code == ErrorCode.UNKNOWN
         mock_session.rollback.assert_called_once()
 
-def test_remove_event(service: TruthCalendarService, sample_event: CalendarEvent):
-    add_result = service.add_event(sample_event)
+def test_remove_event(service: TruthCalendarService, sample_event_info: CalendarEventInfo):
+    add_result = service.add_event(sample_event_info)
     assert add_result.value is not None
     assert add_result.value.id is not None
 
@@ -108,8 +113,8 @@ def test_remove_nonexistent_event(service: TruthCalendarService):
     assert not result.is_successful
     assert result.error_code == ErrorCode.NOT_FOUND
 
-def test_remove_event_database_error(service: TruthCalendarService, sample_event: CalendarEvent, failing_session_factory: tuple[MagicMock, MagicMock]):
-    add_result = service.add_event(sample_event)
+def test_remove_event_database_error(service: TruthCalendarService, sample_event_info: CalendarEventInfo, failing_session_factory: tuple[MagicMock, MagicMock]):
+    add_result = service.add_event(sample_event_info)
     assert add_result.value is not None
     assert add_result.value.id is not None
 

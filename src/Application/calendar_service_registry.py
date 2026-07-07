@@ -1,7 +1,7 @@
 import logging
 
-from src.Application.i_remote_calendar_service import IRemoteCalendarService
-from src.Domain.ExternalProvider import ExternalProvider
+from Application.i_remote_calendar_service import IRemoteCalendarService
+from Domain.ExternalProvider import ExternalProvider
 
 logger = logging.getLogger(__name__)
 

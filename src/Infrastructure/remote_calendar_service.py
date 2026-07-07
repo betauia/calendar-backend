@@ -3,12 +3,11 @@ from typing import final
 
 import httpx
 
-from src.Application.i_remote_calendar_service import IRemoteCalendarService
-from src.Application.models.DTO.calendar_event_info_dto import CalendarEventInfoDTO
-from src.Application.models.DTO.remote_calendar_dto import RemoteCalendarDTO
-from src.Application.service_result import ErrorCode, ServiceResult
-from src.Domain.ExternalProvider import ExternalProvider
-from src.Domain.RemoteCalendar import RemoteCalendar
+from Application.i_remote_calendar_service import IRemoteCalendarService
+from Application.service_result import ErrorCode, ServiceResult
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.ExternalProvider import ExternalProvider
+from Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +27,17 @@ class RemoteCalendarService(IRemoteCalendarService):
         try:
             response = self._client.get(f"{self._provider.url}/calendar")
             response.raise_for_status()
-            calendar = RemoteCalendarDTO.model_validate(response.json())
-            logger.info(f"Successfully fetched calendar ({len(calendar.events)} event(s)) from {self._provider.name}")
-            return ServiceResult[RemoteCalendarDTO](is_successful=True, value=calendar)
+            calendar = RemoteCalendar.model_validate(response.json())
+            logger.info(f"Successfully fetched calendar ({len(calendar.calendar_events)} event(s)) from {self._provider.name}")
+            return ServiceResult[RemoteCalendar](is_successful=True, value=calendar)
         except httpx.ConnectError:
             logger.error(f"Could not connect to {self._provider.name} at {self._provider.url}")
-            return ServiceResult[RemoteCalendarDTO](is_successful=False, error_code=ErrorCode.CONNECTION_ERROR, error_description=f"Could not connect to {self._provider.url}")
+            return ServiceResult[RemoteCalendar](is_successful=False, error_code=ErrorCode.CONNECTION_ERROR, error_description=f"Could not connect to {self._provider.url}")
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error fetching calendar from {self._provider.name}: {e}")
-            return ServiceResult[RemoteCalendarDTO](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
+            return ServiceResult[RemoteCalendar](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
-    def add_event(self, event: CalendarEventInfoDTO) -> ServiceResult[str]:
+    def add_event(self, event: CalendarEventInfo) -> ServiceResult[str]:
         try:
             response = self._client.post(
                 f"{self._provider.url}/event",
@@ -55,25 +54,25 @@ class RemoteCalendarService(IRemoteCalendarService):
             logger.error(f"HTTP error adding event to {self._provider.name}: {e}")
             return ServiceResult[str](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
-    def update_event(self, updated_event: RemoteCalendarEventDTO) -> ServiceResult[RemoteCalendarEventDTO]:
+    def update_event(self, updated_event: RemoteCalendarEvent) -> ServiceResult[RemoteCalendarEvent]:
         try:
             response = self._client.put(
                 f"{self._provider.url}/event/{updated_event.external_id}",
-                json=updated_event.event.model_dump(mode="json")
+                json=updated_event.model_dump(mode="json")
             )
             response.raise_for_status()
-            result = RemoteCalendarEventDTO.model_validate(response.json())
+            result = RemoteCalendarEvent.model_validate(response.json())
             logger.info(f"Successfully updated event {updated_event.external_id} on {self._provider.name}")
-            return ServiceResult[RemoteCalendarEventDTO](is_successful=True, value=result)
+            return ServiceResult[RemoteCalendarEvent](is_successful=True, value=result)
         except httpx.ConnectError:
             logger.error(f"Could not connect to {self._provider.name} at {self._provider.url}")
-            return ServiceResult[RemoteCalendarEventDTO](is_successful=False, error_code=ErrorCode.CONNECTION_ERROR, error_description=f"Could not connect to {self._provider.url}")
+            return ServiceResult[RemoteCalendarEvent](is_successful=False, error_code=ErrorCode.CONNECTION_ERROR, error_description=f"Could not connect to {self._provider.url}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.warning(f"Event {updated_event.external_id} not found on {self._provider.name}")
-                return ServiceResult[RemoteCalendarEventDTO](is_successful=False, error_code=ErrorCode.NOT_FOUND, error_description=f"Event {updated_event.external_id} not found on {self._provider.name}")
+                return ServiceResult[RemoteCalendarEvent](is_successful=False, error_code=ErrorCode.NOT_FOUND, error_description=f"Event {updated_event.external_id} not found on {self._provider.name}")
             logger.error(f"HTTP error updating event on {self._provider.name}: {e}")
-            return ServiceResult[RemoteCalendarEventDTO](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
+            return ServiceResult[RemoteCalendarEvent](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
     def remove_event(self, external_id: str) -> ServiceResult[None]:
         try:

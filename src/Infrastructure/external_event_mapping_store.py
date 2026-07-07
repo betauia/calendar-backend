@@ -1,7 +1,7 @@
 # Infrastructure/ExternalEventMappingStore.py
 import logging
-from src.Domain.ExternalEventMapping import ExternalEventMapping
-from src.Domain.ExternalProvider import ExternalProvider
+from Domain.ExternalEventMapping import ExternalEventMapping
+from Domain.ExternalProvider import ExternalProvider
 
 logger = logging.getLogger(__name__)
 

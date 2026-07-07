@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from src.Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.CalendarEventInfo import CalendarEventInfo
 
 class RemoteCalendarEvent(BaseModel):
     external_id: str

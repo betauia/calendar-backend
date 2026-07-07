@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from src.Domain.ExternalProvider import ExternalProvider
-from src.Domain.RemoteCalendarEvent import RemoteCalendarEvent
+from Domain.ExternalProvider import ExternalProvider
+from Domain.RemoteCalendarEvent import RemoteCalendarEvent
 
 
 class RemoteCalendar(BaseModel):

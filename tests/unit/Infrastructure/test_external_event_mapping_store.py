@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import HttpUrl
 
-from Domain.TruthCalendarEvent import CalendarEvent
+from Domain.TruthCalendarEvent import TruthCalendarEvent
 from Domain.ExternalEventMapping import ExternalEventMapping
 from Domain.ExternalProvider import ExternalProvider
 from Domain.SyncStatus import SyncStatus
@@ -30,8 +30,8 @@ def other_provider() -> ExternalProvider:
 
 
 @pytest.fixture
-def sample_event() -> CalendarEvent:
-    return CalendarEvent(
+def sample_event() -> TruthCalendarEvent:
+    return TruthCalendarEvent(
         id=1,
         title="Team meeting",
         description="Weekly sync",
@@ -43,7 +43,7 @@ def sample_event() -> CalendarEvent:
 
 
 @pytest.fixture
-def sample_mapping(sample_event: CalendarEvent, provider: ExternalProvider) -> ExternalEventMapping:
+def sample_mapping(sample_event: TruthCalendarEvent, provider: ExternalProvider) -> ExternalEventMapping:
     return ExternalEventMapping(
         event=sample_event,
         provider=provider,
@@ -60,7 +60,7 @@ def test_put_creates_new_mapping(store: ExternalEventMappingStore, sample_mappin
     assert result.status == SyncStatus.SYNCED
 
 
-def test_put_replaces_existing_mapping(store: ExternalEventMappingStore, sample_mapping: ExternalEventMapping, sample_event: CalendarEvent, provider: ExternalProvider):
+def test_put_replaces_existing_mapping(store: ExternalEventMappingStore, sample_mapping: ExternalEventMapping, sample_event: TruthCalendarEvent, provider: ExternalProvider):
     store.put(sample_mapping)
 
     updated_mapping = ExternalEventMapping(
@@ -82,7 +82,7 @@ def test_get_returns_none_for_missing_mapping(store: ExternalEventMappingStore, 
     assert result is None
 
 
-def test_put_different_providers_stored_separately(store: ExternalEventMappingStore, sample_event: CalendarEvent, provider: ExternalProvider, other_provider: ExternalProvider):
+def test_put_different_providers_stored_separately(store: ExternalEventMappingStore, sample_event: TruthCalendarEvent, provider: ExternalProvider, other_provider: ExternalProvider):
     mapping_a = ExternalEventMapping(
         event=sample_event,
         provider=provider,
@@ -109,7 +109,7 @@ def test_put_different_providers_stored_separately(store: ExternalEventMappingSt
 
 
 def test_put_raises_if_event_id_is_none(store: ExternalEventMappingStore, provider: ExternalProvider):
-    event_without_id = CalendarEvent(
+    event_without_id = TruthCalendarEvent(
         title="Team meeting",
         description="Weekly sync",
         created_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),

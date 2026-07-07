@@ -1,8 +1,8 @@
 from pydantic import BaseModel, model_validator
 
-from src.Domain.RemoteCalendarEvent import RemoteCalendarEvent
-from src.Domain.TruthCalendarEvent import TruthCalendarEvent
-from src.Domain.SyncStatus import SyncStatus
+from Domain.RemoteCalendarEvent import RemoteCalendarEvent
+from Domain.TruthCalendarEvent import TruthCalendarEvent
+from Domain.SyncStatus import SyncStatus
 
 
 class EventSyncResult(BaseModel):

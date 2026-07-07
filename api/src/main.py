@@ -2,14 +2,14 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from src.Application.calendar_service_registry import CalendarServiceRegistry
-from src.Application.config_service import ConfigService
-from src.Application.sync_service import SyncService
-from src.Domain.SyncStatus import SyncStatus
-from src.Infrastructure.external_event_mapping_store import ExternalEventMappingStore
-from src.Infrastructure.remote_calendar_service import RemoteCalendarService
-from src.Infrastructure.truth_calendar_service import TruthCalendarService
-from src.Presentation.routes import router
+from Application.calendar_service_registry import CalendarServiceRegistry
+from Application.config_service import ConfigService
+from Application.sync_service import SyncService
+from Domain.SyncStatus import SyncStatus
+from Infrastructure.external_event_mapping_store import ExternalEventMappingStore
+from Infrastructure.remote_calendar_service import RemoteCalendarService
+from Infrastructure.truth_calendar_service import TruthCalendarService
+from Presentation.routes import router
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "providers.yaml"
 

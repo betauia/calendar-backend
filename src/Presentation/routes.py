@@ -1,11 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from Application.sync_service import SyncService
+from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
-from Domain.SyncStatus import SyncStatus
-from Presentation.ViewModels.SyncStatusCounts import SyncStatusCounts
-from Presentation.ViewModels.SyncStatusResponse import SyncStatusResponse
+from Presentation.ViewModels.SyncStatusResponse import SyncStatusCounts, SyncStatusResponse
 
 
 class Routes:
@@ -15,6 +14,7 @@ class Routes:
         self.router = APIRouter()
         self.router.add_api_route("/sync-status", self.get_all_sync_status, methods=["GET"])
         self.router.add_api_route("/sync-status/{provider_name}", self.get_sync_status, methods=["GET"])
+        self.router.add_api_route("/providers", self.get_configured_providers, methods=["GET"])
 
     def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
         sync_result = self._sync_service.get_provider_calendar_sync_status(provider)
@@ -27,11 +27,20 @@ class Routes:
             )
         )
 
+    def _find_provider(self, provider_name: str) -> ExternalProvider | None:    # Cursed and I hate it. Stems from a lack of ExternalProvider registry.
+        return next(
+            (p for p in self._providers if p.name.lower() == provider_name.lower()),
+            None
+        )
+
     def get_sync_status(self, provider_name: str) -> SyncStatusResponse:
-        provider = self._providers.get(provider_name.lower())
+        provider = self._find_provider(provider_name)
         if provider is None:
             raise HTTPException(status_code=404, detail=f"Provider '{provider_name}' not found")
         return self._build_sync_status(provider)
 
     def get_all_sync_status(self) -> list[SyncStatusResponse]:
-        return [self._build_sync_status(p) for p in self._providers.values()]
+        return [self._build_sync_status(p) for p in self._providers]
+    
+    def get_configured_providers(self) -> list[str]:
+        return [p.name for p in self._providers]

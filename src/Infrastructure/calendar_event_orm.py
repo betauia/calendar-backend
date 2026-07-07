@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from src.Domain.CalendarEventInfo import CalendarEventInfo
-from src.Domain.TruthCalendarEvent import TruthCalendarEvent
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
+from Domain.TruthCalendarEvent import TruthCalendarEvent
 
 
 class Base(DeclarativeBase):
@@ -31,20 +32,21 @@ class CalendarEventORM(Base):
                 description=self.description,
                 location=self.location,
                 starts_at=self.starts_at,
-                ends_at=self.ends_at,
+                ends_at=self.ends_at),
+            event_meta_info=CalendarEventMetaInfo(
                 created_at=self.created_at,
-                updated_at=self.updated_at)
+                updated_at=self.updated_at
+            )
         )
 
     @classmethod
-    def from_domain(cls, event: TruthCalendarEvent) -> "CalendarEventORM":
+    def from_event_info(cls, event_info: CalendarEventInfo) -> "CalendarEventORM":
+        """For creation — no id, no meta yet."""
         return cls(
-            id=event.id,
-            title=event.event_info.title,
-            description=event.event_info.description,
-            location=event.event_info.location,
-            starts_at=event.event_info.starts_at,
-            ends_at=event.event_info.ends_at,
-            created_at=event.event_info.created_at,
-            updated_at=event.event_info.updated_at,
+            title=event_info.title,
+            description=event_info.description,
+            location=event_info.location,
+            starts_at=event_info.starts_at,
+            ends_at=event_info.ends_at,
+            created_at=datetime.now(timezone.utc),
         )

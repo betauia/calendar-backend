@@ -6,11 +6,11 @@ from pydantic import HttpUrl
 import pytest
 import httpx
 
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.RemoteCalendar import RemoteCalendar
+from Domain.RemoteCalendarEvent import RemoteCalendarEvent
 from Infrastructure.remote_calendar_service import RemoteCalendarService
 from Application.service_result import ErrorCode
-from Application.models.DTO.calendar_event_info_dto import CalendarEventInfoDTO
-from Application.models.DTO.remote_calendar_event_dto import RemoteCalendarEventDTO
-from Application.models.DTO.remote_calendar_dto import RemoteCalendarDTO
 from Domain.ExternalProvider import ExternalProvider
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def service(provider: ExternalProvider):
 
 @pytest.fixture
 def sample_dto():
-    return CalendarEventInfoDTO(
+    return CalendarEventInfo(
         title="Team meeting",
         description="Weekly sync",
         location="Discord",
@@ -38,13 +38,13 @@ def sample_dto():
 
 
 @pytest.fixture
-def sample_remote_event(sample_dto: CalendarEventInfoDTO):
-    return RemoteCalendarEventDTO(external_id="remote-abc123", event=sample_dto)
+def sample_remote_event(sample_dto: CalendarEventInfo):
+    return RemoteCalendarEvent(external_id="remote-abc123", event_info=sample_dto)
 
 
 @pytest.fixture
-def sample_remote_calendar(sample_remote_event: RemoteCalendarEventDTO):
-    return RemoteCalendarDTO(events=[sample_remote_event])
+def sample_remote_calendar(provider: ExternalProvider, sample_remote_event: RemoteCalendarEvent):
+    return RemoteCalendar(external_provider=provider, calendar_events=[sample_remote_event])
 
 
 # ── context manager ───────────────────────────────────────────
@@ -64,7 +64,7 @@ def test_context_manager_closes_client(provider: ExternalProvider):
 
 # ── get_calendar ──────────────────────────────────────────────
 
-def test_get_calendar_success(service: RemoteCalendarService, sample_remote_calendar: RemoteCalendarDTO):
+def test_get_calendar_success(service: RemoteCalendarService, sample_remote_calendar: RemoteCalendar):
     mock_response = MagicMock()
     mock_response.json.return_value = sample_remote_calendar.model_dump(mode="json")
     mock_response.raise_for_status = MagicMock()
@@ -75,9 +75,9 @@ def test_get_calendar_success(service: RemoteCalendarService, sample_remote_cale
 
     assert result.is_successful
     assert result.value is not None
-    assert len(result.value.events) == 1
-    assert result.value.events[0].external_id == "remote-abc123"
-    assert result.value.events[0].event.title == "Team meeting"
+    assert len(result.value.calendar_events) == 1
+    assert result.value.calendar_events[0].external_id == "remote-abc123"
+    assert result.value.calendar_events[0].event_info.title == "Team meeting"
 
 
 def test_get_calendar_connection_error(service: RemoteCalendarService):
@@ -107,7 +107,7 @@ def test_get_calendar_http_error(service: RemoteCalendarService):
 
 # ── add_event ─────────────────────────────────────────────────
 
-def test_add_event_success(service: RemoteCalendarService, sample_dto: CalendarEventInfoDTO):
+def test_add_event_success(service: RemoteCalendarService, sample_dto: CalendarEventInfo):
     mock_response = MagicMock()
     mock_response.json.return_value = "remote-abc123"
     mock_response.raise_for_status = MagicMock()
@@ -120,7 +120,7 @@ def test_add_event_success(service: RemoteCalendarService, sample_dto: CalendarE
     assert result.value == "remote-abc123"
 
 
-def test_add_event_connection_error(service: RemoteCalendarService, sample_dto: CalendarEventInfoDTO):
+def test_add_event_connection_error(service: RemoteCalendarService, sample_dto: CalendarEventInfo):
     with patch.object(service, "_client") as mock_client:
         mock_client.post.side_effect = httpx.ConnectError("Connection refused")
         result = service.add_event(sample_dto)
@@ -129,7 +129,7 @@ def test_add_event_connection_error(service: RemoteCalendarService, sample_dto: 
     assert result.error_code == ErrorCode.CONNECTION_ERROR
 
 
-def test_add_event_http_error(service: RemoteCalendarService, sample_dto: CalendarEventInfoDTO):
+def test_add_event_http_error(service: RemoteCalendarService, sample_dto: CalendarEventInfo):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "500 Internal Server Error",
@@ -147,9 +147,9 @@ def test_add_event_http_error(service: RemoteCalendarService, sample_dto: Calend
 
 # ── update_event ──────────────────────────────────────────────
 
-def test_update_event_success(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEventDTO):
-    updated_dto = sample_remote_event.event.model_copy(update={"title": "Updated meeting"})
-    updated_remote_event = RemoteCalendarEventDTO(external_id=sample_remote_event.external_id, event=updated_dto)
+def test_update_event_success(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEvent):
+    updated_event_info = sample_remote_event.event_info.model_copy(update={"title": "Updated meeting"})
+    updated_remote_event = RemoteCalendarEvent(external_id=sample_remote_event.external_id, event_info=updated_event_info)
 
     mock_response = MagicMock()
     mock_response.json.return_value = updated_remote_event.model_dump(mode="json")
@@ -161,11 +161,11 @@ def test_update_event_success(service: RemoteCalendarService, sample_remote_even
 
     assert result.is_successful
     assert result.value is not None
-    assert result.value.event.title == "Updated meeting"
+    assert result.value.event_info.title == "Updated meeting"
     assert result.value.external_id == sample_remote_event.external_id
 
 
-def test_update_event_not_found(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEventDTO):
+def test_update_event_not_found(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEvent):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "404 Not Found",
@@ -181,7 +181,7 @@ def test_update_event_not_found(service: RemoteCalendarService, sample_remote_ev
     assert result.error_code == ErrorCode.NOT_FOUND
 
 
-def test_update_event_connection_error(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEventDTO):
+def test_update_event_connection_error(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEvent):
     with patch.object(service, "_client") as mock_client:
         mock_client.put.side_effect = httpx.ConnectError("Connection refused")
         result = service.update_event(sample_remote_event)
@@ -190,7 +190,7 @@ def test_update_event_connection_error(service: RemoteCalendarService, sample_re
     assert result.error_code == ErrorCode.CONNECTION_ERROR
 
 
-def test_update_event_http_error(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEventDTO):
+def test_update_event_http_error(service: RemoteCalendarService, sample_remote_event: RemoteCalendarEvent):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "500 Internal Server Error",

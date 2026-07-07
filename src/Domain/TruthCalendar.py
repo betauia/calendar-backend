@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from src.Domain.TruthCalendarEvent import TruthCalendarEvent
+from Domain.TruthCalendarEvent import TruthCalendarEvent
 
 
 class TruthCalendar(BaseModel):

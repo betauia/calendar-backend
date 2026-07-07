@@ -2,8 +2,8 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from src.Application.sync_service import SyncService
-from src.Domain.SyncStatus import SyncStatus
+from Application.sync_service import SyncService
+from Domain.SyncStatus import SyncStatus
 
 router = APIRouter()
 
