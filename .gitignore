@@ -7,3 +7,4 @@ api/.coverage
 calendar-backend.code-workspace
 api/.vscode/settings.json
 .vscode/
+.coverage
