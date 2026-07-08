@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import HttpUrl
 
+from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 from Domain.TruthCalendarEvent import TruthCalendarEvent
 from Domain.ExternalEventMapping import ExternalEventMapping
 from Domain.ExternalProvider import ExternalProvider
@@ -33,19 +35,21 @@ def other_provider() -> ExternalProvider:
 def sample_event() -> TruthCalendarEvent:
     return TruthCalendarEvent(
         id=1,
-        title="Team meeting",
-        description="Weekly sync",
-        created_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
-        location="Discord",
-        starts_at=datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
-        ends_at=datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
+        event_info=CalendarEventInfo(
+            title="Team meeting",
+            description="Weekly sync",
+            location="Discord",
+            starts_at=datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
+            ends_at=datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc)),
+        event_meta_info=CalendarEventMetaInfo(
+            created_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc)),
     )
 
 
 @pytest.fixture
 def sample_mapping(sample_event: TruthCalendarEvent, provider: ExternalProvider) -> ExternalEventMapping:
     return ExternalEventMapping(
-        event=sample_event,
+        truth_event_id=sample_event.id,
         provider=provider,
         external_id="ext-123",
         status=SyncStatus.SYNCED
@@ -64,7 +68,7 @@ def test_put_replaces_existing_mapping(store: ExternalEventMappingStore, sample_
     store.put(sample_mapping)
 
     updated_mapping = ExternalEventMapping(
-        event=sample_event,
+        truth_event_id=sample_event.id,
         provider=provider,
         external_id="ext-456",
         status=SyncStatus.BEHIND
@@ -84,13 +88,13 @@ def test_get_returns_none_for_missing_mapping(store: ExternalEventMappingStore, 
 
 def test_put_different_providers_stored_separately(store: ExternalEventMappingStore, sample_event: TruthCalendarEvent, provider: ExternalProvider, other_provider: ExternalProvider):
     mapping_a = ExternalEventMapping(
-        event=sample_event,
+        truth_event_id=sample_event.id,
         provider=provider,
         external_id="ext-123",
         status=SyncStatus.SYNCED
     )
     mapping_b = ExternalEventMapping(
-        event=sample_event,
+        truth_event_id=sample_event.id,
         provider=other_provider,
         external_id="ext-456",
         status=SyncStatus.BEHIND
@@ -106,23 +110,3 @@ def test_put_different_providers_stored_separately(store: ExternalEventMappingSt
     assert result_b is not None
     assert result_a.external_id == "ext-123"
     assert result_b.external_id == "ext-456"
-
-
-def test_put_raises_if_event_id_is_none(store: ExternalEventMappingStore, provider: ExternalProvider):
-    event_without_id = TruthCalendarEvent(
-        title="Team meeting",
-        description="Weekly sync",
-        created_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
-        location="Discord",
-        starts_at=datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
-        ends_at=datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc),
-    )
-    mapping = ExternalEventMapping(
-        event=event_without_id,
-        provider=provider,
-        external_id="ext-123",
-        status=SyncStatus.SYNCED
-    )
-
-    with pytest.raises(ValueError, match="Event id must not be None"):
-        store.put(mapping)

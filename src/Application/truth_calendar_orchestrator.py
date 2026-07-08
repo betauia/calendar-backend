@@ -31,16 +31,16 @@ class TruthCalendarOrchestrator:
             # self._sync_service.sync_all()
         return result
 
-    def update_event(self, event: TruthCalendarEvent) -> ServiceResult[TruthCalendarEvent]:
-        result = self._truth_service.update_event(event)
+    def update_event(self, event_id: int, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
+        result = self._truth_service.update_event(event_id, event_info)
         if result.is_successful:
-            logger.info(f"Event '{event.title}' updated, triggering sync...")
-            self._sync_service.sync_all()
+            logger.info(f"Event '{event_info.title}' updated, triggering sync...")
+            # self._sync_service.sync_all()
         return result
 
     def remove_event(self, event_id: int) -> ServiceResult[None]:
         result = self._truth_service.remove_event(event_id)
         if result.is_successful:
             logger.info(f"Event {event_id} removed, triggering sync...")
-            self._sync_service.sync_all()
+            # self._sync_service.sync_all()
         return result

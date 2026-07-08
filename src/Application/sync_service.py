@@ -47,7 +47,7 @@ class SyncService:
             logger.debug(f"Successfully fetched calendar from provider '{provider.name}'")
             return RemoteCalendar(
                 external_provider=provider,
-                # calendar_events=result.value.,
+                calendar_events=result.value.calendar_events,
             )
         else:
             logger.error(f"Failed to fetch calendar from provider '{provider.name}': {result.error_description}")
@@ -130,18 +130,15 @@ class SyncService:
         return CalendarSyncResult(remote_calendar=remote_calendar, event_statuses=event_results)
 
     def get_all_calendars_sync_status(self) -> SyncResult:
-        truth_calendar = self._get_truth_calendar()
-
         calendar_sync_results: list[CalendarSyncResult] = []
 
         for provider, _ in self._registry.get_all():
             try:
-                remote_calendar = self._get_provider_calendar(provider)
+                result = self.get_provider_calendar_sync_status(provider)
             except Exception as e:
                 logger.warning(f"Skipping provider '{provider.name}': {e}")
                 continue
 
-            result = self.get_provider_calendar_sync_status(provider)
             calendar_sync_results.append(result)
 
         return SyncResult(calendar_sync_statuses=calendar_sync_results)

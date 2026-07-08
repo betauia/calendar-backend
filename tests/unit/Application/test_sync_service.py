@@ -7,7 +7,9 @@ from unittest.mock import create_autospec
 
 from Application.sync_service import SyncService
 from Application.calendar_service_registry import CalendarServiceRegistry
+from Application.i_remote_calendar_service import IRemoteCalendarService
 from Application.models.result.calendar_sync_result import CalendarSyncResult
+from Application.service_result import ServiceResult
 from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
@@ -38,7 +40,7 @@ def event_info() -> CalendarEventInfo:
         starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
         ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
     )
-    
+
 @pytest.fixture
 def event_meta_info() -> CalendarEventMetaInfo:
     return CalendarEventMetaInfo(
@@ -66,10 +68,36 @@ def mapping_store() -> ExternalEventMappingStore:
     return create_autospec(ExternalEventMappingStore, instance=True, spec_set=True)  # type: ignore
 
 @pytest.fixture
-def sync_service(mapping_store: ExternalEventMappingStore) -> SyncService:
+def truth_service(truth_calendar: TruthCalendar) -> TruthCalendarService:
+    service = create_autospec(TruthCalendarService, instance=True)
+    service.get_calendar.return_value = ServiceResult[TruthCalendar](  # type: ignore
+        is_successful=True, value=truth_calendar
+    )
+    return service
+
+@pytest.fixture
+def remote_service(remote_calendar: RemoteCalendar) -> IRemoteCalendarService:
+    service = create_autospec(IRemoteCalendarService, instance=True)
+    service.get_calendar.return_value = ServiceResult[RemoteCalendar](  # type: ignore
+        is_successful=True, value=remote_calendar
+    )
+    return service
+
+@pytest.fixture
+def registry(remote_service: IRemoteCalendarService) -> CalendarServiceRegistry:
+    registry = create_autospec(CalendarServiceRegistry, instance=True)
+    registry.get.return_value = remote_service  # type: ignore
+    return registry
+
+@pytest.fixture
+def sync_service(
+    truth_service: TruthCalendarService,
+    registry: CalendarServiceRegistry,
+    mapping_store: ExternalEventMappingStore,
+) -> SyncService:
     return SyncService(
-        truth_service=create_autospec(TruthCalendarService, instance=True),
-        registry=create_autospec(CalendarServiceRegistry, instance=True),
+        truth_service=truth_service,
+        registry=registry,
         mapping_store=mapping_store,
     )
 
@@ -79,12 +107,11 @@ def sync_service(mapping_store: ExternalEventMappingStore) -> SyncService:
 def test_truth_event_with_no_mapping_is_behind(
     sync_service: SyncService,
     mapping_store: ExternalEventMappingStore,
-    truth_calendar: TruthCalendar,
-    remote_calendar: RemoteCalendar,
+    provider: ExternalProvider,
 ) -> None:
     mapping_store.get.return_value = None  # type: ignore
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(truth_calendar, remote_calendar)
+    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
 
     assert len(result.event_statuses) == 2
     behind = [e for e in result.event_statuses if e.sync_status == SyncStatus.BEHIND]
@@ -96,8 +123,6 @@ def test_truth_event_with_no_mapping_is_behind(
 def test_truth_event_with_matching_remote_is_synced(
     sync_service: SyncService,
     mapping_store: ExternalEventMappingStore,
-    truth_calendar: TruthCalendar,
-    remote_calendar: RemoteCalendar,
     provider: ExternalProvider,
 ) -> None:
     mapping_store.get.return_value = ExternalEventMapping(  # type: ignore
@@ -107,7 +132,7 @@ def test_truth_event_with_matching_remote_is_synced(
         status=SyncStatus.SYNCED,
     )
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(truth_calendar, remote_calendar)
+    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
 
     assert len(result.event_statuses) == 1
     assert result.event_statuses[0].sync_status == SyncStatus.SYNCED
@@ -117,12 +142,12 @@ def test_remote_event_with_no_truth_counterpart_is_ahead(
     sync_service: SyncService,
     mapping_store: ExternalEventMappingStore,
     truth_calendar: TruthCalendar,
-    remote_calendar: RemoteCalendar,
+    provider: ExternalProvider,
 ) -> None:
     mapping_store.get.return_value = None  # type: ignore
     truth_calendar.calendar_events.clear()  # no truth events
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(truth_calendar, remote_calendar)
+    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
 
     assert len(result.event_statuses) == 1
     assert result.event_statuses[0].sync_status == SyncStatus.AHEAD
