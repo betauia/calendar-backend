@@ -23,6 +23,9 @@ class TruthCalendarOrchestrator:
 
     def get_calendar(self) -> ServiceResult[TruthCalendar]:
         return self._truth_service.get_calendar()
+    
+    def get_event_with_id(self, event_id: int) -> ServiceResult[TruthCalendarEvent]:
+        return self._truth_service.get_event_with_id(event_id)
 
     def add_event(self, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
         result = self._truth_service.add_event(event_info)
