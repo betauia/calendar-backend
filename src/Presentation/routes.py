@@ -34,6 +34,7 @@ class Routes:
         self.router.add_api_route("/events", self.add_event, methods=["POST"])
         self.router.add_api_route("/events/{event_id}", self.get_event_with_id, methods=["GET"])
         self.router.add_api_route("/events", self.get_events, methods=["GET"])
+        self.router.add_api_route("/events/{event_id}", self.delete_event, methods=["DELETE"], status_code=204)
 
 
 
@@ -95,3 +96,6 @@ class Routes:
     def get_events(self) -> TruthCalendar:
         calendar = self._unwrap(self._truth_calendar_orchestrator.get_calendar())
         return calendar
+    
+    def delete_event(self, event_id: int) -> None:
+        self._unwrap(self._truth_calendar_orchestrator.remove_event(event_id))
