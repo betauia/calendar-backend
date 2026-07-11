@@ -9,7 +9,7 @@ from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
-from Domain.TruthCalendar import TruthCalendarEvent
+from Domain.TruthCalendar import TruthCalendar, TruthCalendarEvent
 from Presentation.ViewModels.ErrorResponse import ErrorResponse
 from Presentation.ViewModels.SyncStatusResponse import SyncStatusCounts, SyncStatusResponse
 
@@ -33,6 +33,8 @@ class Routes:
         self.router.add_api_route("/providers", self.get_configured_providers, methods=["GET"])
         self.router.add_api_route("/events", self.add_event, methods=["POST"])
         self.router.add_api_route("/events/{event_id}", self.get_event_with_id, methods=["GET"])
+        self.router.add_api_route("/events", self.get_events, methods=["GET"])
+
 
 
     def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
@@ -89,3 +91,7 @@ class Routes:
     def get_event_with_id(self, event_id: int) -> TruthCalendarEvent:
         event = self._unwrap(self._truth_calendar_orchestrator.get_event_with_id(event_id))
         return event
+    
+    def get_events(self) -> TruthCalendar:
+        calendar = self._unwrap(self._truth_calendar_orchestrator.get_calendar())
+        return calendar
