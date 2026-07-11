@@ -9,6 +9,7 @@ from pydantic import HttpUrl
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
 from Application.sync_service import SyncService
+from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
 from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 from Domain.ExternalProvider import ExternalProvider
@@ -31,9 +32,21 @@ def sync_service() -> SyncService:
 
 
 @pytest.fixture
-def client(sync_service: SyncService, provider: ExternalProvider) -> TestClient:
+def truth_calendar_orchestrator():
+    return create_autospec(object, instance=True)
+
+@pytest.fixture
+def client(
+    sync_service: SyncService,
+    provider: ExternalProvider,
+    truth_calendar_orchestrator: TruthCalendarOrchestrator,
+) -> TestClient:
     providers_config = ProvidersConfig(external_providers=[provider])
-    routes = Routes(sync_service=sync_service, providers=providers_config)
+    routes = Routes(
+        sync_service=sync_service,
+        providers=providers_config,
+        truth_calendar_orchestrator=truth_calendar_orchestrator,
+    )
     app = FastAPI()
     app.include_router(routes.router)
     return TestClient(app)

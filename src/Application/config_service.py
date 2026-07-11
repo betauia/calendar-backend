@@ -14,11 +14,13 @@ class ConfigService:
         return ProvidersConfig(**data)
     
 
-    def setup_logging(self, log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
+    def setup_logging(self, log_dir: str | Path | None = None, level: int = logging.DEBUG) -> logging.Logger:
+        if log_dir is None:
+            log_dir = Path(__file__).resolve().parents[2] / "logs"  # project root, not cwd
         log_path = Path(log_dir)
-        log_path.mkdir(exist_ok=True)
+        log_path.mkdir(exist_ok=True, parents=True)
 
-        logger = logging.getLogger("betacalendar")
+        logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)  # capture everything, handlers filter
 
         # --- Formatters ---
