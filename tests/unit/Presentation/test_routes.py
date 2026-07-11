@@ -8,6 +8,7 @@ from pydantic import HttpUrl
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
 from Application.sync_service import SyncService
+from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
 from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
@@ -56,7 +57,12 @@ def test_get_sync_status_returns_provider_summary() -> None:
         ],
     )
 
-    routes = Routes(sync_service=sync_service, providers=providers_config)
+    truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
+    routes = Routes(
+        sync_service=sync_service,
+        truth_calendar_orchestrator=truth_calendar_orchestrator,
+        providers=providers_config,
+    )
     app = FastAPI()
     app.include_router(routes.router)
 
@@ -66,7 +72,8 @@ def test_get_sync_status_returns_provider_summary() -> None:
     assert response.status_code == 200
     assert response.json()["provider"] == "Discord"
     assert response.json()["counts"]["ahead"] == 1
-    
+
+
 def test_get_all_sync_status_returns_all_providers() -> None:
     provider = ExternalProvider(name="Discord", url=HttpUrl("http://discord.com"))
     providers_config = ProvidersConfig(external_providers=[provider])
@@ -95,7 +102,12 @@ def test_get_all_sync_status_returns_all_providers() -> None:
         ],
     )
 
-    routes = Routes(sync_service=sync_service, providers=providers_config)
+    truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
+    routes = Routes(
+        sync_service=sync_service,
+        truth_calendar_orchestrator=truth_calendar_orchestrator,
+        providers=providers_config,
+    )
     app = FastAPI()
     app.include_router(routes.router)
 
@@ -115,7 +127,12 @@ def test_get_sync_status_unknown_provider_returns_404() -> None:
     ])
 
     sync_service = create_autospec(SyncService, instance=True)
-    routes = Routes(sync_service=sync_service, providers=providers_config)
+    truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
+    routes = Routes(
+        sync_service=sync_service,
+        truth_calendar_orchestrator=truth_calendar_orchestrator,
+        providers=providers_config,
+    )
     app = FastAPI()
     app.include_router(routes.router)
 

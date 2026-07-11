@@ -1,20 +1,27 @@
 from fastapi import APIRouter, HTTPException
 
+from Application.service_result import ServiceResult
 from Application.sync_service import SyncService
+from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
+from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
+from Domain.TruthCalendar import TruthCalendarEvent
 from Presentation.ViewModels.SyncStatusResponse import SyncStatusCounts, SyncStatusResponse
 
 
 class Routes:
-    def __init__(self, sync_service: SyncService, providers: ProvidersConfig) -> None:
+    def __init__(self, sync_service: SyncService, truth_calendar_orchestrator: TruthCalendarOrchestrator, providers: ProvidersConfig) -> None:
         self._sync_service = sync_service
+        self._truth_calendar_orchestrator = truth_calendar_orchestrator
         self._providers = providers.external_providers
         self.router = APIRouter()
         self.router.add_api_route("/sync-status", self.get_all_sync_status, methods=["GET"])
         self.router.add_api_route("/sync-status/{provider_name}", self.get_sync_status, methods=["GET"])
         self.router.add_api_route("/providers", self.get_configured_providers, methods=["GET"])
+        self.router.add_api_route("/events", self.add_event, methods=["POST"], response_model=ServiceResult[TruthCalendarEvent])
+
 
     def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
         sync_result = self._sync_service.get_provider_calendar_sync_status(provider)
@@ -44,3 +51,6 @@ class Routes:
     
     def get_configured_providers(self) -> list[str]:
         return [p.name for p in self._providers]
+    
+    def add_event(self, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
+        return self._truth_calendar_orchestrator.add_event(event_info)
