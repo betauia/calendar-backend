@@ -31,6 +31,19 @@ class TruthCalendarService:
             logger.error(f"Failed to get truth calendar: {e}")
             return ServiceResult[TruthCalendar](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
 
+    def get_event_with_id(self, event_id: int) -> ServiceResult[TruthCalendarEvent]:
+        try:
+            with self._session_factory() as session:
+                logger.info(f"Getting event with id {event_id} from database...")
+                row = session.get(CalendarEventORM, event_id)
+                if not row:
+                    logger.warning(f"Event with id {event_id} not found")
+                    return ServiceResult[TruthCalendarEvent](is_successful=False, error_code=ErrorCode.NOT_FOUND, error_description=f"Event with id {event_id} not found")
+                return ServiceResult[TruthCalendarEvent](is_successful=True, value=row.to_domain())
+        except Exception as e:
+            logger.error(f"Failed to get truth calendar: {e}")
+            return ServiceResult[TruthCalendarEvent](is_successful=False, error_code=ErrorCode.UNKNOWN, error_description=str(e))
+        
     def add_event(self, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
         with self._session_factory() as session:
             try:
