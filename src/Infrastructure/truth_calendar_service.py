@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy import create_engine, select
@@ -72,6 +73,7 @@ class TruthCalendarService:
                 row.location = updated_event_info.location
                 row.starts_at = updated_event_info.starts_at
                 row.ends_at = updated_event_info.ends_at
+                row.updated_at = datetime.now(timezone.utc)
                 session.commit()
                 session.refresh(row)
                 logger.info(f"Updated event: {updated_event_info.title}")

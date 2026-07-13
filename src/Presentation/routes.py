@@ -35,8 +35,7 @@ class Routes:
         self.router.add_api_route("/events/{event_id}", self.get_event_with_id, methods=["GET"])
         self.router.add_api_route("/events", self.get_events, methods=["GET"])
         self.router.add_api_route("/events/{event_id}", self.delete_event, methods=["DELETE"], status_code=204)
-
-
+        self.router.add_api_route("/events/{event_id}", self.update_event, methods=["PUT"])
 
     def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
         sync_result = self._sync_service.get_provider_calendar_sync_status(provider)
@@ -99,3 +98,7 @@ class Routes:
     
     def delete_event(self, event_id: int) -> None:
         self._unwrap(self._truth_calendar_orchestrator.remove_event(event_id))
+        
+    def update_event(self, event_id: int, event_info: CalendarEventInfo) -> TruthCalendarEvent:     # PUT update, consider adding PATCH update
+        event = self._unwrap(self._truth_calendar_orchestrator.update_event(event_id, event_info))
+        return event
