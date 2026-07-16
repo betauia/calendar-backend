@@ -7,6 +7,7 @@ from pydantic import HttpUrl
 
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
+from Application.sync_coordinator import SyncCoordinator
 from Application.sync_service import SyncService
 from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
 from Domain.CalendarEventInfo import CalendarEventInfo
@@ -23,6 +24,7 @@ def test_get_sync_status_returns_provider_summary() -> None:
     providers_config = ProvidersConfig(external_providers=[provider])
 
     sync_service = create_autospec(SyncService, instance=True)
+    sync_coordinator = create_autospec(SyncCoordinator, instance=True)
     sync_service.get_provider_calendar_sync_status.return_value = CalendarSyncResult(
         remote_calendar=RemoteCalendar(
             external_provider=provider,
@@ -60,6 +62,7 @@ def test_get_sync_status_returns_provider_summary() -> None:
     truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
     routes = Routes(
         sync_service=sync_service,
+        sync_coordinator=sync_coordinator,
         truth_calendar_orchestrator=truth_calendar_orchestrator,
         providers=providers_config,
     )
@@ -103,8 +106,10 @@ def test_get_all_sync_status_returns_all_providers() -> None:
     )
 
     truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
+    sync_coordinator = create_autospec(SyncCoordinator, instance=True)
     routes = Routes(
         sync_service=sync_service,
+        sync_coordinator=sync_coordinator,
         truth_calendar_orchestrator=truth_calendar_orchestrator,
         providers=providers_config,
     )
@@ -128,8 +133,10 @@ def test_get_sync_status_unknown_provider_returns_404() -> None:
 
     sync_service = create_autospec(SyncService, instance=True)
     truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
+    sync_coordinator = create_autospec(SyncCoordinator, instance=True)
     routes = Routes(
         sync_service=sync_service,
+        sync_coordinator=sync_coordinator,
         truth_calendar_orchestrator=truth_calendar_orchestrator,
         providers=providers_config,
     )

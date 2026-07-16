@@ -46,6 +46,7 @@ def client(
         sync_service=sync_service,
         providers=providers_config,
         truth_calendar_orchestrator=truth_calendar_orchestrator,
+        sync_coordinator=create_autospec(object, instance=True),
     )
     app = FastAPI()
     app.include_router(routes.router)

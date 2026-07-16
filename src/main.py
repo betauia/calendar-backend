@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from Application.calendar_service_registry import CalendarServiceRegistry
 from Application.config_service import ConfigService
+from Application.sync_coordinator import SyncCoordinator
 from Application.sync_service import SyncService
 from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
 from Infrastructure.external_event_mapping_store import ExternalEventMappingStore
@@ -37,13 +38,14 @@ async def lifespan(app: FastAPI):
     truth_service = TruthCalendarService(connection_string="sqlite:///truth_calendar.db")   # Fucks up if you use in-memory SQLite because of threads
     mapping_store = ExternalEventMappingStore()
     sync_service = SyncService(truth_service=truth_service, registry=service_registry, mapping_store=mapping_store)
-    truth_calendar_orchestrator = TruthCalendarOrchestrator(truth_service=truth_service, sync_service=sync_service)  # SyncService will be set later
+    sync_coordinator = SyncCoordinator(sync_service=sync_service)
+    truth_calendar_orchestrator = TruthCalendarOrchestrator(truth_service=truth_service, sync_coordinator=sync_coordinator)  # SyncService will be set later
 
     sync_status_all = sync_service.get_all_calendars_sync_status()
     
     print(f"Sync Status for all providers:", sync_status_all.model_dump(mode="json"))
     
-    routes = Routes(sync_service=sync_service, truth_calendar_orchestrator=truth_calendar_orchestrator, providers=config)
+    routes = Routes(sync_service=sync_service, sync_coordinator=sync_coordinator, truth_calendar_orchestrator=truth_calendar_orchestrator, providers=config)
     app.include_router(routes.router)
 
     logger.info("Startup complete. API is ready to accept requests.")

@@ -2,7 +2,7 @@
 import logging
 
 from Application.service_result import ServiceResult
-from Application.sync_service import SyncService
+from Application.sync_coordinator import SyncCoordinator
 from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.TruthCalendar import TruthCalendar
 from Domain.TruthCalendarEvent import TruthCalendarEvent
@@ -16,10 +16,10 @@ class TruthCalendarOrchestrator:
     def __init__(
         self,
         truth_service: TruthCalendarService,
-        sync_service: SyncService,
+        sync_coordinator: SyncCoordinator
     ) -> None:
         self._truth_service = truth_service
-        self._sync_service = sync_service
+        self._sync_coordinator = sync_coordinator
 
     def get_calendar(self) -> ServiceResult[TruthCalendar]:
         return self._truth_service.get_calendar()
@@ -31,19 +31,19 @@ class TruthCalendarOrchestrator:
         result = self._truth_service.add_event(event_info)
         if result.is_successful:
             logger.info(f"Event '{event_info.title}' added, triggering sync...")
-            # self._sync_service.sync_all()
+            self._sync_coordinator.request_sync()
         return result
 
     def update_event(self, event_id: int, event_info: CalendarEventInfo) -> ServiceResult[TruthCalendarEvent]:
         result = self._truth_service.update_event(event_id, event_info)
         if result.is_successful:
             logger.info(f"Event '{event_info.title}' updated, triggering sync...")
-            # self._sync_service.sync_all()
+            self._sync_coordinator.request_sync()
         return result
 
     def remove_event(self, event_id: int) -> ServiceResult[None]:
         result = self._truth_service.remove_event(event_id)
         if result.is_successful:
             logger.info(f"Event {event_id} removed, triggering sync...")
-            # self._sync_service.sync_all()
+            self._sync_coordinator.request_sync()
         return result

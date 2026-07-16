@@ -3,6 +3,7 @@ from typing import TypeVar
 from fastapi import APIRouter, HTTPException
 
 from Application.service_result import ErrorCode, ServiceResult
+from Application.sync_coordinator import SyncCoordinator
 from Application.sync_service import SyncService
 from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
 from Domain.CalendarEventInfo import CalendarEventInfo
@@ -23,11 +24,13 @@ _ERROR_STATUS_MAP: dict[ErrorCode, int] = {
 }
 
 class Routes:
-    def __init__(self, sync_service: SyncService, truth_calendar_orchestrator: TruthCalendarOrchestrator, providers: ProvidersConfig) -> None:
+    def __init__(self, sync_service: SyncService, sync_coordinator: SyncCoordinator, truth_calendar_orchestrator: TruthCalendarOrchestrator, providers: ProvidersConfig) -> None:
         self._sync_service = sync_service
+        self._sync_coordinator = sync_coordinator
         self._truth_calendar_orchestrator = truth_calendar_orchestrator
         self._providers = providers.external_providers
         self.router = APIRouter()
+        
         self.router.add_api_route("/sync-status", self.get_all_sync_status, methods=["GET"])
         self.router.add_api_route("/sync-status/{provider_name}", self.get_sync_status, methods=["GET"])
         self.router.add_api_route("/providers", self.get_configured_providers, methods=["GET"])
@@ -36,6 +39,7 @@ class Routes:
         self.router.add_api_route("/events", self.get_events, methods=["GET"])
         self.router.add_api_route("/events/{event_id}", self.delete_event, methods=["DELETE"], status_code=204)
         self.router.add_api_route("/events/{event_id}", self.update_event, methods=["PUT"])
+        self.router.add_api_route("/sync-status", self.synchronize, methods=["POST"], status_code=202)
 
     def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
         sync_result = self._sync_service.get_provider_calendar_sync_status(provider)
@@ -102,3 +106,6 @@ class Routes:
     def update_event(self, event_id: int, event_info: CalendarEventInfo) -> TruthCalendarEvent:     # PUT update, consider adding PATCH update
         event = self._unwrap(self._truth_calendar_orchestrator.update_event(event_id, event_info))
         return event
+    
+    def synchronize(self) -> None:
+        self._sync_coordinator.request_sync()
