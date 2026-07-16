@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     mapping_store = ExternalEventMappingStore()
     sync_service = SyncService(truth_service=truth_service, registry=service_registry, mapping_store=mapping_store)
     sync_coordinator = SyncCoordinator(sync_service=sync_service)
-    truth_calendar_orchestrator = TruthCalendarOrchestrator(truth_service=truth_service, sync_service=sync_service)  # SyncService will be set later
+    truth_calendar_orchestrator = TruthCalendarOrchestrator(truth_service=truth_service, sync_coordinator=sync_coordinator)  # SyncService will be set later
 
     sync_status_all = sync_service.get_all_calendars_sync_status()
     
