@@ -1,10 +1,12 @@
 import logging
 
 from Application.calendar_service_registry import CalendarServiceRegistry
+from Application.i_remote_calendar_service import IRemoteCalendarService
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
 from Application.models.result.sync_result import SyncResult
 from Domain.CalendarEventInfo import CalendarEventInfo
+from Domain.ExternalEventMapping import ExternalEventMapping
 from Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
 from Domain.SyncStatus import SyncStatus
 from Domain.ExternalProvider import ExternalProvider
@@ -14,7 +16,7 @@ from Infrastructure.truth_calendar_service import TruthCalendarService
 
 logger = logging.getLogger(__name__)
 
-
+# This class does way too much
 class SyncService:
     def __init__(
         self,
@@ -142,3 +144,68 @@ class SyncService:
             calendar_sync_results.append(result)
 
         return SyncResult(calendar_sync_statuses=calendar_sync_results)
+    
+    def sync_all(self) -> SyncResult:
+        calendar_sync_results: list[CalendarSyncResult] = []
+
+        for provider, service in self._registry.get_all():
+            try:
+                diff = self.get_provider_calendar_sync_status(provider)
+            except Exception as e:
+                logger.warning(f"Skipping provider '{provider.name}': {e}")
+                continue
+
+            for event_result in diff.event_statuses:
+                self._apply_event_sync(provider, service, event_result)
+
+            calendar_sync_results.append(diff)
+
+        return SyncResult(calendar_sync_statuses=calendar_sync_results)
+
+    def _apply_event_sync(
+        self,
+        provider: ExternalProvider,
+        service: IRemoteCalendarService,
+        event_result: EventSyncResult,
+    ) -> None:
+        if event_result.sync_status == SyncStatus.SYNCED:
+            return
+
+        if event_result.sync_status == SyncStatus.BEHIND:
+            truth_event = event_result.truth_event
+            assert truth_event is not None  # guaranteed by EventSyncResult's validator
+
+            if event_result.remote_event is None:
+                result = service.add_event(truth_event.event_info)
+                if not result.is_successful or result.value is None:
+                    logger.error(f"[{provider.name}] Failed to push event {truth_event.id}: {result.error_description}")
+                    return
+                external_id = result.value
+            else:
+                updated = RemoteCalendarEvent(
+                    external_id=event_result.remote_event.external_id,
+                    event_info=truth_event.event_info,
+                )
+                result = service.update_event(updated)
+                if not result.is_successful or result.value is None:
+                    logger.error(f"[{provider.name}] Failed to update event {truth_event.id}: {result.error_description}")
+                    return
+                external_id = result.value.external_id
+
+            self._mapping_store.put(ExternalEventMapping(
+                truth_event_id=truth_event.id,
+                external_id=external_id,
+                provider=provider,
+                status=SyncStatus.SYNCED,
+            ))
+            logger.info(f"[{provider.name}] Synced truth event {truth_event.id} → remote '{external_id}'")
+
+        elif event_result.sync_status == SyncStatus.AHEAD:
+            remote_event = event_result.remote_event
+            assert remote_event is not None
+
+            result = service.remove_event(remote_event.external_id)
+            if not result.is_successful:
+                logger.error(f"[{provider.name}] Failed to remove orphan '{remote_event.external_id}': {result.error_description}")
+                return
+            logger.info(f"[{provider.name}] Removed orphaned remote event '{remote_event.external_id}'")
