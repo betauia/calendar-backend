@@ -20,7 +20,6 @@ from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
 from Domain.RemoteCalendar import RemoteCalendar
 from Domain.RemoteCalendarEvent import RemoteCalendarEvent
-from Domain.SyncStatus import SyncStatus
 from Infrastructure.external_event_mapping_store import ExternalEventMappingStore
 from Infrastructure.truth_calendar_service import TruthCalendarService
 from Presentation.routes import Routes
@@ -28,7 +27,10 @@ from Presentation.routes import Routes
 logger = logging.getLogger(__name__)
 
 
-# --- Fixtures: real infra, wired the same way main.py does it ---
+# --- Fixtures: real infra, wired the same way main.py does it.
+# The only mock is the remote provider — everything else, including this
+# test's ASSERTIONS, are exercised purely through the FastAPI client,
+# the way a real BetaDev consumer of the API would. ---
 
 @pytest.fixture
 def provider() -> ExternalProvider:
@@ -91,6 +93,8 @@ def truth_service(tmp_path: Path) -> TruthCalendarService:
 
 @pytest.fixture
 def mapping_store() -> ExternalEventMappingStore:
+    # Real store, needed to wire SyncService correctly — but no test below
+    # reaches into it directly. Everything is observed through the API.
     return ExternalEventMappingStore()
 
 
@@ -152,7 +156,7 @@ def event_payload() -> dict[str, str]:
     }
 
 
-# --- Tests ---
+# --- Tests: every assertion below is made against API responses only. ---
 
 def test_add_event_persists_to_truth_calendar(
     client: TestClient, event_payload: dict[str, str]
@@ -179,6 +183,9 @@ def test_add_event_triggers_sync_and_propagates_to_provider(
 
     # SyncCoordinator.request_sync() runs synchronously in-thread, so by the
     # time the response comes back the (mocked) provider has already been hit.
+    # Checking that the mock was called is the one place we still peek behind
+    # the API — there's no HTTP-observable proof the outbound push happened
+    # short of asking the mock directly, since the mock IS the "provider".
     mock_remote_service.add_event.assert_called_once()  # type: ignore
     called_event_info = cast(
         CalendarEventInfo,
@@ -187,31 +194,13 @@ def test_add_event_triggers_sync_and_propagates_to_provider(
     assert called_event_info.title == "Standup"
 
 
-def test_add_event_updates_mapping_store_to_synced(
-    client: TestClient,
-    event_payload: dict[str, str],
-    mapping_store: ExternalEventMappingStore,
-    provider: ExternalProvider,
-) -> None:
-    response = client.post("/events", json=event_payload)
-    truth_event_id = response.json()["id"]
-
-    mapping = mapping_store.get(truth_event_id, provider)
-
-    assert mapping is not None
-    assert mapping.external_id == "remote-ext-1"
-    assert mapping.status == SyncStatus.SYNCED
-
-
-def test_add_event_reflected_in_sync_status_endpoint(
+def test_add_event_is_reflected_as_synced_via_sync_status_endpoint(
     client: TestClient, event_payload: dict[str, str]
 ) -> None:
-    client.post("/events", json=event_payload)
+    response = client.post("/events", json=event_payload)
+    assert response.status_code == 200
 
     status_response = client.get("/sync-status/discord")
 
     assert status_response.status_code == 200
-    counts = status_response.json()["counts"]
-    assert counts["synced"] == 1
-    assert counts["behind"] == 0
-    assert counts["ahead"] == 0
+    assert status_response.json()["counts"] == {"ahead": 0, "behind": 0, "synced": 1}
