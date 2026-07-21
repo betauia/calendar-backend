@@ -8,7 +8,6 @@ from unittest.mock import create_autospec
 from Application.sync_service import SyncService
 from Application.calendar_service_registry import CalendarServiceRegistry
 from Application.i_remote_calendar_service import IRemoteCalendarService
-from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.service_result import ServiceResult
 from Domain.CalendarEventMetaInfo import CalendarEventMetaInfo
 from Domain.SyncStatus import SyncStatus
@@ -113,11 +112,13 @@ def test_truth_event_with_no_mapping_is_behind(
 ) -> None:
     mapping_store.get.return_value = None  # type: ignore
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
+    result = sync_service.get_provider_calendar_sync_status(provider)
 
-    assert len(result.event_statuses) == 2
-    behind = [e for e in result.event_statuses if e.sync_status == SyncStatus.BEHIND]
-    ahead = [e for e in result.event_statuses if e.sync_status == SyncStatus.AHEAD]
+    assert result.is_successful
+    assert result.value is not None
+    assert len(result.value.event_statuses) == 2
+    behind = [e for e in result.value.event_statuses if e.sync_status == SyncStatus.BEHIND]
+    ahead = [e for e in result.value.event_statuses if e.sync_status == SyncStatus.AHEAD]
     assert len(behind) == 1 and behind[0].truth_event is not None
     assert len(ahead) == 1 and ahead[0].remote_event is not None
 
@@ -134,10 +135,12 @@ def test_truth_event_with_matching_remote_is_synced(
         status=SyncStatus.SYNCED,
     )
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
+    result = sync_service.get_provider_calendar_sync_status(provider)
 
-    assert len(result.event_statuses) == 1
-    assert result.event_statuses[0].sync_status == SyncStatus.SYNCED
+    assert result.is_successful
+    assert result.value is not None
+    assert len(result.value.event_statuses) == 1
+    assert result.value.event_statuses[0].sync_status == SyncStatus.SYNCED
 
 
 def test_remote_event_with_no_truth_counterpart_is_ahead(
@@ -149,11 +152,13 @@ def test_remote_event_with_no_truth_counterpart_is_ahead(
     mapping_store.get.return_value = None  # type: ignore
     truth_calendar.calendar_events.clear()  # no truth events
 
-    result: CalendarSyncResult = sync_service.get_provider_calendar_sync_status(provider)
+    result = sync_service.get_provider_calendar_sync_status(provider)
 
-    assert len(result.event_statuses) == 1
-    assert result.event_statuses[0].sync_status == SyncStatus.AHEAD
-    assert result.event_statuses[0].truth_event is None
+    assert result.is_successful
+    assert result.value is not None
+    assert len(result.value.event_statuses) == 1
+    assert result.value.event_statuses[0].sync_status == SyncStatus.AHEAD
+    assert result.value.event_statuses[0].truth_event is None
     
 def test_sync_all_pushes_new_event_when_behind_with_no_remote_match(
     sync_service: SyncService,

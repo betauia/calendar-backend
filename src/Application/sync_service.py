@@ -5,6 +5,7 @@ from Application.i_remote_calendar_service import IRemoteCalendarService
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
 from Application.models.result.sync_result import SyncResult
+from Application.service_result import ErrorCode, ServiceResult
 from Domain.CalendarEventInfo import CalendarEventInfo
 from Domain.ExternalEventMapping import ExternalEventMapping
 from Domain.RemoteCalendar import RemoteCalendar, RemoteCalendarEvent
@@ -75,12 +76,19 @@ class SyncService:
         return SyncStatus.SYNCED
 
     def get_provider_calendar_sync_status(
-    self,
-    external_provider: ExternalProvider
-) -> CalendarSyncResult:
-        truth_calendar = self._get_truth_calendar()
-        remote_calendar = self._get_provider_calendar(external_provider)
-        
+        self, external_provider: ExternalProvider
+    ) -> ServiceResult[CalendarSyncResult]:
+        try:
+            truth_calendar = self._get_truth_calendar()
+            remote_calendar = self._get_provider_calendar(external_provider)
+        except Exception as e:
+            logger.error(f"Failed to compute sync status for provider '{external_provider.name}': {e}")
+            return ServiceResult[CalendarSyncResult](
+                is_successful=False,
+                error_code=ErrorCode.CONNECTION_ERROR,
+                error_description=str(e),
+            )
+
         provider_name = remote_calendar.external_provider.name
         logger.debug(f"Comparing calendars for provider '{provider_name}'...")
 
@@ -97,16 +105,12 @@ class SyncService:
             if mapping is None:
                 logger.debug(f"[{provider_name}] Truth event {truth_id} has no mapping → BEHIND")
                 event_results.append(EventSyncResult(
-                    truth_event=truth_event,
-                    remote_event=None,
-                    sync_status=SyncStatus.BEHIND
+                    truth_event=truth_event, remote_event=None, sync_status=SyncStatus.BEHIND
                 ))
             elif mapping.external_id not in remote_events:
                 logger.warning(f"[{provider_name}] Truth event {truth_id} mapped to '{mapping.external_id}' but remote event is gone → BEHIND")
                 event_results.append(EventSyncResult(
-                    truth_event=truth_event,
-                    remote_event=None,
-                    sync_status=SyncStatus.BEHIND
+                    truth_event=truth_event, remote_event=None, sync_status=SyncStatus.BEHIND
                 ))
             else:
                 remote_event = remote_events[mapping.external_id]
@@ -114,52 +118,43 @@ class SyncService:
                 status = self._resolve_event_status(truth_event, remote_event)
                 logger.debug(f"[{provider_name}] Truth event {truth_id} ↔ remote '{mapping.external_id}' → {status.value}")
                 event_results.append(EventSyncResult(
-                    truth_event=truth_event,
-                    remote_event=remote_event,
-                    sync_status=status
+                    truth_event=truth_event, remote_event=remote_event, sync_status=status
                 ))
 
         for external_id, remote_event in remote_events.items():
             if external_id not in mapped_external_ids:
                 logger.debug(f"[{provider_name}] Remote event '{external_id}' has no truth counterpart → AHEAD")
                 event_results.append(EventSyncResult(
-                    truth_event=None,
-                    remote_event=remote_event,
-                    sync_status=SyncStatus.AHEAD
+                    truth_event=None, remote_event=remote_event, sync_status=SyncStatus.AHEAD
                 ))
 
         logger.debug(f"[{provider_name}] Comparison complete: {len(event_results)} results")
-        return CalendarSyncResult(remote_calendar=remote_calendar, event_statuses=event_results)
+        return ServiceResult[CalendarSyncResult](
+            is_successful=True,
+            value=CalendarSyncResult(remote_calendar=remote_calendar, event_statuses=event_results),
+        )
 
     def get_all_calendars_sync_status(self) -> SyncResult:
         calendar_sync_results: list[CalendarSyncResult] = []
-
         for provider, _ in self._registry.get_all():
-            try:
-                result = self.get_provider_calendar_sync_status(provider)
-            except Exception as e:
-                logger.warning(f"Skipping provider '{provider.name}': {e}")
+            result = self.get_provider_calendar_sync_status(provider)
+            if not result.is_successful or result.value is None:
+                logger.warning(f"Skipping provider '{provider.name}': {result.error_description}")
                 continue
-
-            calendar_sync_results.append(result)
-
+            calendar_sync_results.append(result.value)
         return SyncResult(calendar_sync_statuses=calendar_sync_results)
     
     def sync_all(self) -> SyncResult:
         calendar_sync_results: list[CalendarSyncResult] = []
-
         for provider, service in self._registry.get_all():
-            try:
-                diff = self.get_provider_calendar_sync_status(provider)
-            except Exception as e:
-                logger.warning(f"Skipping provider '{provider.name}': {e}")
+            result = self.get_provider_calendar_sync_status(provider)
+            if not result.is_successful or result.value is None:
+                logger.warning(f"Skipping provider '{provider.name}': {result.error_description}")
                 continue
-
+            diff = result.value
             for event_result in diff.event_statuses:
                 self._apply_event_sync(provider, service, event_result)
-
             calendar_sync_results.append(diff)
-
         return SyncResult(calendar_sync_statuses=calendar_sync_results)
 
     def _apply_event_sync(

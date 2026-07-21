@@ -2,6 +2,7 @@ from typing import TypeVar
 
 from fastapi import APIRouter, HTTPException
 
+from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.service_result import ErrorCode, ServiceResult
 from Application.sync_coordinator import SyncCoordinator
 from Application.sync_service import SyncService
@@ -12,6 +13,7 @@ from Domain.ExternalProvider import ExternalProvider
 from Domain.ProvidersConfig import ProvidersConfig
 from Domain.TruthCalendar import TruthCalendar, TruthCalendarEvent
 from Presentation.ViewModels.ErrorResponse import ErrorResponse
+from Presentation.ViewModels.SyncStatusErrorResponse import SyncStatusErrorResponse
 from Presentation.ViewModels.SyncStatusResponse import SyncStatusCounts, SyncStatusResponse
 
 T = TypeVar("T")
@@ -30,7 +32,7 @@ class Routes:
         self._truth_calendar_orchestrator = truth_calendar_orchestrator
         self._providers = providers.external_providers
         self.router = APIRouter()
-        
+
         self.router.add_api_route("/sync-status", self.get_all_sync_status, methods=["GET"])
         self.router.add_api_route("/sync-status/{provider_name}", self.get_sync_status, methods=["GET"])
         self.router.add_api_route("/providers", self.get_configured_providers, methods=["GET"])
@@ -41,15 +43,11 @@ class Routes:
         self.router.add_api_route("/events/{event_id}", self.update_event, methods=["PUT"])
         self.router.add_api_route("/sync-status", self.synchronize, methods=["POST"], status_code=202)
 
-    def _build_sync_status(self, provider: ExternalProvider) -> SyncStatusResponse:
-        sync_result = self._sync_service.get_provider_calendar_sync_status(provider)
-        return SyncStatusResponse(
-            provider=provider.name,
-            counts=SyncStatusCounts(
-                ahead=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.AHEAD),
-                behind=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.BEHIND),
-                synced=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.SYNCED),
-            )
+    def _to_counts(self, sync_result: CalendarSyncResult) -> SyncStatusCounts:
+        return SyncStatusCounts(
+            ahead=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.AHEAD),
+            behind=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.BEHIND),
+            synced=sum(1 for e in sync_result.event_statuses if e.sync_status == SyncStatus.SYNCED),
         )
 
     def _find_provider(self, provider_name: str) -> ExternalProvider | None:    # Cursed and I hate it. Stems from a lack of ExternalProvider registry.
@@ -69,7 +67,7 @@ class Routes:
                 message=result.error_description or "Unknown error",
             ).model_dump(),
         )
-    
+
     def get_sync_status(self, provider_name: str) -> SyncStatusResponse:
         provider = self._find_provider(provider_name)
         if provider is None:
@@ -80,10 +78,29 @@ class Routes:
                     message=f"Provider '{provider_name}' not found",
                 ).model_dump(),
             )
-        return self._build_sync_status(provider)
+        # Asking about one specific provider: a failure IS the answer, raise it.
+        sync_result = self._unwrap(self._sync_service.get_provider_calendar_sync_status(provider))
+        return SyncStatusResponse(provider=provider.name, counts=self._to_counts(sync_result))
 
-    def get_all_sync_status(self) -> list[SyncStatusResponse]:
-        return [self._build_sync_status(p) for p in self._providers]
+    def get_all_sync_status(self) -> list[SyncStatusResponse | SyncStatusErrorResponse]:
+        # Asking about all providers: one plugin being down shouldn't hide
+        # results from the ones that work. Aggregate success/failure per item.
+        results: list[SyncStatusResponse | SyncStatusErrorResponse] = []
+        for provider in self._providers:
+            result = self._sync_service.get_provider_calendar_sync_status(provider)
+            if result.is_successful and result.value is not None:
+                results.append(
+                    SyncStatusResponse(provider=provider.name, counts=self._to_counts(result.value))
+                )
+            else:
+                results.append(
+                    SyncStatusErrorResponse(
+                        provider=provider.name,
+                        error_code=result.error_code.value,
+                        error_description=result.error_description or "Unknown error",
+                    )
+                )
+        return results
 
     def get_configured_providers(self) -> list[str]:
         return [p.name for p in self._providers]
@@ -91,21 +108,21 @@ class Routes:
     def add_event(self, event_info: CalendarEventInfo) -> TruthCalendarEvent:
         event = self._unwrap(self._truth_calendar_orchestrator.add_event(event_info))
         return event
-    
+
     def get_event_with_id(self, event_id: int) -> TruthCalendarEvent:
         event = self._unwrap(self._truth_calendar_orchestrator.get_event_with_id(event_id))
         return event
-    
+
     def get_events(self) -> TruthCalendar:
         calendar = self._unwrap(self._truth_calendar_orchestrator.get_calendar())
         return calendar
-    
+
     def delete_event(self, event_id: int) -> None:
         self._unwrap(self._truth_calendar_orchestrator.remove_event(event_id))
-        
+
     def update_event(self, event_id: int, event_info: CalendarEventInfo) -> TruthCalendarEvent:     # PUT update, consider adding PATCH update
         event = self._unwrap(self._truth_calendar_orchestrator.update_event(event_id, event_info))
         return event
-    
+
     def synchronize(self) -> None:
         self._sync_coordinator.request_sync()
