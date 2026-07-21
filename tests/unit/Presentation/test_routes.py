@@ -7,6 +7,7 @@ from pydantic import HttpUrl
 
 from Application.models.result.calendar_sync_result import CalendarSyncResult
 from Application.models.result.event_sync_result import EventSyncResult
+from Application.service_result import ServiceResult
 from Application.sync_coordinator import SyncCoordinator
 from Application.sync_service import SyncService
 from Application.truth_calendar_orchestrator import TruthCalendarOrchestrator
@@ -25,38 +26,41 @@ def test_get_sync_status_returns_provider_summary() -> None:
 
     sync_service = create_autospec(SyncService, instance=True)
     sync_coordinator = create_autospec(SyncCoordinator, instance=True)
-    sync_service.get_provider_calendar_sync_status.return_value = CalendarSyncResult(
-        remote_calendar=RemoteCalendar(
-            external_provider=provider,
-            calendar_events=[
-                RemoteCalendarEvent(
-                    external_id="ext-1",
-                    event_info=CalendarEventInfo(
-                        title="Standup",
-                        description="Daily",
-                        location="Online",
-                        starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
-                        ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+    sync_service.get_provider_calendar_sync_status.return_value = ServiceResult[CalendarSyncResult](
+        is_successful=True,
+        value=CalendarSyncResult(
+            remote_calendar=RemoteCalendar(
+                external_provider=provider,
+                calendar_events=[
+                    RemoteCalendarEvent(
+                        external_id="ext-1",
+                        event_info=CalendarEventInfo(
+                            title="Standup",
+                            description="Daily",
+                            location="Online",
+                            starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                            ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+                        ),
+                    )
+                ],
+            ),
+            event_statuses=[
+                EventSyncResult(
+                    truth_event=None,
+                    remote_event=RemoteCalendarEvent(
+                        external_id="ext-1",
+                        event_info=CalendarEventInfo(
+                            title="Standup",
+                            description="Daily",
+                            location="Online",
+                            starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                            ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+                        ),
                     ),
+                    sync_status=SyncStatus.AHEAD,
                 )
             ],
         ),
-        event_statuses=[
-            EventSyncResult(
-                truth_event=None,
-                remote_event=RemoteCalendarEvent(
-                    external_id="ext-1",
-                    event_info=CalendarEventInfo(
-                        title="Standup",
-                        description="Daily",
-                        location="Online",
-                        starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
-                        ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
-                    ),
-                ),
-                sync_status=SyncStatus.AHEAD,
-            )
-        ],
     )
 
     truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
@@ -82,27 +86,30 @@ def test_get_all_sync_status_returns_all_providers() -> None:
     providers_config = ProvidersConfig(external_providers=[provider])
 
     sync_service = create_autospec(SyncService, instance=True)
-    sync_service.get_provider_calendar_sync_status.return_value = CalendarSyncResult(
-        remote_calendar=RemoteCalendar(
-            external_provider=provider,
-            calendar_events=[],
-        ),
-        event_statuses=[
-            EventSyncResult(
-                truth_event=None,
-                remote_event=RemoteCalendarEvent(
-                    external_id="ext-1",
-                    event_info=CalendarEventInfo(
-                        title="Standup",
-                        description="Daily",
-                        location="Online",
-                        starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
-                        ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+    sync_service.get_provider_calendar_sync_status.return_value = ServiceResult[CalendarSyncResult](
+        is_successful=True,
+        value=CalendarSyncResult(
+            remote_calendar=RemoteCalendar(
+                external_provider=provider,
+                calendar_events=[],
+            ),
+            event_statuses=[
+                EventSyncResult(
+                    truth_event=None,
+                    remote_event=RemoteCalendarEvent(
+                        external_id="ext-1",
+                        event_info=CalendarEventInfo(
+                            title="Standup",
+                            description="Daily",
+                            location="Online",
+                            starts_at=datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc),
+                            ends_at=datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc),
+                        ),
                     ),
-                ),
-                sync_status=SyncStatus.AHEAD,
-            )
-        ],
+                    sync_status=SyncStatus.AHEAD,
+                )
+            ],
+        ),
     )
 
     truth_calendar_orchestrator = create_autospec(TruthCalendarOrchestrator, instance=True)
@@ -124,7 +131,6 @@ def test_get_all_sync_status_returns_all_providers() -> None:
     assert len(data) == 1
     assert data[0]["provider"] == "Discord"
     assert data[0]["counts"]["ahead"] == 1
-
 
 def test_get_sync_status_unknown_provider_returns_404() -> None:
     providers_config = ProvidersConfig(external_providers=[
